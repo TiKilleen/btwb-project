@@ -1,0 +1,107 @@
+from flask import Flask, send_file
+from PIL import Image, ImageDraw, ImageFont
+from playwright.sync_api import sync_playwright
+import io
+import time
+
+app = Flask(__name__)
+
+# 🔁 Scrape WOD text from your GitHub-hosted BTWB widget
+def scrape_btwb_wod(url):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(user_agent="Mozilla/5.0 (Macintosh)")
+        page = context.new_page()
+        page.goto(url, timeout=60000)
+        time.sleep(8)
+        text = page.inner_text(".btwb_webwidget")
+        browser.close()
+        return text
+
+# 🧠 Convert text into structured WOD dictionary
+def parse_wod_text_to_json(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    title = lines[0] if lines else "WOD"
+    movements = lines[1:] if len(lines) > 1 else []
+    return {
+        "title": title,
+        "movements": movements
+    }
+
+# 🎨 Draw the workout graphic (1080x1920, polished layout)
+def generate_image(wod_data):
+    img = Image.new('RGB', (1080, 1920), color='white')
+    draw = ImageDraw.Draw(img)
+
+    # Fonts
+    try:
+        title_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Helvetica Bold.ttf", 72)
+        header_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Helvetica.ttf", 48)
+        movement_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Helvetica Bold.ttf", 54)
+        footer_font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Helvetica.ttf", 42)
+    except:
+        title_font = header_font = movement_font = footer_font = ImageFont.load_default()
+
+    center_x = 540
+    y = 150
+
+    # 🟦 Black border around new canvas size
+    draw.rectangle([(10, 10), (1070, 1910)], outline="black", width=10)
+
+    # 🔺 Header
+# 🔺 Header logo (replace "CSC" with image)
+try:
+    logo = Image.open("csc_logo.jpg").convert("RGBA")
+    logo_width = 700
+    logo_ratio = logo_width / logo.width
+    logo_height = int(logo.height * logo_ratio)
+    logo = logo.resize((logo_width, logo_height))
+
+    # Paste logo centered at top
+    logo_x = int((1080 - logo_width) / 2)
+    img.paste(logo, (logo_x, y), logo if logo.mode == 'RGBA' else None)
+    y += logo_height + 40
+except Exception as e:
+    print(f"Error loading logo: {e}")
+    draw.text((center_x, y), "CSC", font=title_font, fill="red", anchor="mm")
+    y += 100
+
+    draw.text((center_x, y), "6AM // 9:30AM // 5:30PM", font=header_font, fill="black", anchor="mm")
+
+    # 🏋️ WOD title
+    y += 150
+    draw.text((center_x, y), wod_data["title"].upper(), font=title_font, fill="black", anchor="mm")
+
+    # 🔻 Movements
+    y += 100
+    for move in wod_data["movements"]:
+        draw.text((center_x, y), move.upper(), font=movement_font, fill="red", anchor="mm")
+        y += 80
+
+    # 📆 Footer
+    draw.text((center_x, 1800), "WORKOUT OF THE DAY 7.1.2025", font=footer_font, fill="black",       anchor="mm")
+
+    # Export image
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    return img_io
+
+# 🌐 Routes
+@app.route("/")
+def home():
+    return '''
+        <h1>BTWB Workout Poster Generator</h1>
+        <a href="/generate">Generate WOD Image</a>
+    '''
+
+@app.route("/generate")
+def generate():
+    url = "https://tikilleen.github.io/btwb-widget-test/"
+    wod_text = scrape_btwb_wod(url)
+    wod_json = parse_wod_text_to_json(wod_text)
+    img_io = generate_image(wod_json)
+    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='btwb_wod.png')
+
+if __name__ == "__main__":
+    app.run(debug=True)
