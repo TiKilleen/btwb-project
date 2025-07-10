@@ -4,16 +4,16 @@ FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 WORKDIR /app
 
 # Copy requirements file
-COPY requirements.txt .
+COPY btwb-project/requirements.txt .
 
 # Install Python dependencies
 RUN pip install -r requirements.txt
 
 # Copy all project files
-COPY . .
+COPY btwb-project/ .
 
 # Expose port (adjust if your app uses a different port)
-EXPOSE 5000
+EXPOSE 8000
 
 # Command to run your application (replace 'app.py' with your main file)
 CMD ["python", "app.py"]
