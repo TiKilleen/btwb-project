@@ -115,8 +115,6 @@ CLASS_SCHEDULE = {
 }
 
 
-
-
 def scrape_btwb_wod(widget_html, target_date_str):
     """
     Scrapes BTWB workout data from a page containing the widget HTML
@@ -416,30 +414,28 @@ def generate_image(wod_data):
     """
     img = Image.new('RGB', (1080, 1920), color='white')
     draw = ImageDraw.Draw(img)
-    font_path = os.path.join(os.path.dirname(__file__), "Staatliches-Regular.ttf")
-
-import os
-print(f"Current working directory: {os.getcwd()}")
-print(f"Files in current directory: {os.listdir('.')}")
-print(f"Fonts directory exists: {os.path.exists('fonts')}")
-if os.path.exists('fonts'):
-    print(f"Files in fonts directory: {os.listdir('fonts')}")
-
-try:
-    footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 48)
-except OSError as e:
-    print(f"Font loading error: {e}")
-    # Use fallback font for now
-    footer_font_large = ImageFont.load_default()
     
-    # Load fonts
+    # Check for font files and load them
+    font_path = "fonts/Staatliches-Regular.ttf"
+    
+    # Debug file system
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Files in current directory: {os.listdir('.')}")
+    print(f"Fonts directory exists: {os.path.exists('fonts')}")
+    if os.path.exists('fonts'):
+        print(f"Files in fonts directory: {os.listdir('fonts')}")
+    
+    # Load fonts with proper error handling
     try:
-        title_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 54)
-        header_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 42)
-        movement_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 42)
-        footer_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 32)
-    except:
-        title_font = header_font = movement_font = footer_font = ImageFont.load_default()
+        title_font = ImageFont.truetype(font_path, 54)
+        header_font = ImageFont.truetype(font_path, 42)
+        movement_font = ImageFont.truetype(font_path, 42)
+        footer_font = ImageFont.truetype(font_path, 32)
+        footer_font_large = ImageFont.truetype(font_path, 48)
+    except OSError as e:
+        print(f"Font loading error: {e}")
+        # Use fallback font
+        title_font = header_font = movement_font = footer_font = footer_font_large = ImageFont.load_default()
         print("Using default fonts")
 
     center_x = 540
@@ -526,7 +522,7 @@ except OSError as e:
         # Calculate movement heights with optimal font size
         font_size = 54
         while font_size > 20:
-            test_font = ImageFont.truetype(font_path, font_size)
+            test_font = ImageFont.truetype(font_path, font_size) if os.path.exists(font_path) else ImageFont.load_default()
             test_content_height = content_height
             
             for move in workout["movements"]:
@@ -540,7 +536,7 @@ except OSError as e:
             font_size -= 2
         
         # Calculate final content height with chosen font
-        movement_font = ImageFont.truetype(font_path, font_size)
+        movement_font = ImageFont.truetype(font_path, font_size) if os.path.exists(font_path) else ImageFont.load_default()
         line_height = max(30, font_size - 10)
         
         final_content_height = content_height
@@ -589,7 +585,7 @@ except OSError as e:
 
     # Draw footer text at bottom of image
     footer_y = 1850
-    footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 48)
+    footer_font_large = ImageFont.truetype(font_path, 48) if os.path.exists(font_path) else ImageFont.load_default()
     
     # Calculate text width and scale to fit image width minus border padding
     available_width = 1080 - (border_padding * 2) - 20
@@ -598,7 +594,7 @@ except OSError as e:
     if text_width > available_width:
         scale_factor = available_width / text_width
         new_font_size = int(48 * scale_factor)
-        footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", new_font_size)
+        footer_font_large = ImageFont.truetype(font_path, new_font_size) if os.path.exists(font_path) else ImageFont.load_default()
     
     draw.text((center_x, footer_y), footer_text, font=footer_font_large, fill="black", anchor="mm")
 
