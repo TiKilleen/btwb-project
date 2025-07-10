@@ -114,8 +114,414 @@ CLASS_SCHEDULE = {
     "Sunday": ["SUNDAY PUMP SWEAT - 10AM"]
 }
 
+
+def scrape_btwb_wod(widget_html, target_date_str):
+    """
+    Improved BTWB scraper with better error handling and container compatibility
+    """
+    # Parse the target date to ensure it's in the correct format
+    try:
+        target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
+        # Format the date as BTWB expects it (YYYY-M-D format, not zero-padded)
+        formatted_date = f"{target_date.year}-{target_date.month}-{target_date.day}"
+    except Exception as e:
+        print(f"Error parsing target date: {e}")
+        formatted_date = target_date_str
+    
+    # Replace data-days="0" with data-date="YYYY-M-D"
+    updated_widget_html = re.sub(r'data-days="[^"]*"', '', widget_html)
+    updated_widget_html = updated_widget_html.replace(
+        'data-track_ids=310497',
+        f'data-track_ids=310497 data-date="{formatted_date}"'
+    )
+    
+    print(f"=== DEBUG: Widget HTML update ===")
+    print(f"Target date: {target_date_str}")
+    print(f"Formatted date: {formatted_date}")
+    print("=== END WIDGET DEBUG ===")
+    
+    # Create a more robust HTML page with better error handling
+    temp_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>BTWB Widget</title>
+        <link rel="stylesheet" href="https://static.btwb.com/libs/webwidgets/2/webwidgets.css">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+        <style>
+            body {{ font-family: Arial, sans-serif; padding: 20px; }}
+            .loading {{ color: #666; }}
+            .error {{ color: #ff0000; }}
+        </style>
+    </head>
+    <body>
+        <div id="loading" class="loading">Loading workout data...</div>
+        {updated_widget_html}
+        <script type="text/javascript" src="https://static.btwb.com/libs/webwidgets/2/webwidgets.js"></script>
+        <script>
+            console.log('Widget initialization starting...');
+            
+            // Monitor for content changes
+            var checkCount = 0;
+            var maxChecks = 30; // 30 seconds max
+            
+            function checkWidgetContent() {{
+                checkCount++;
+                var widget = document.querySelector('.btwb_webwidget');
+                var loading = document.getElementById('loading');
+                
+                if (widget) {{
+                    console.log('Widget found, checking content...');
+                    console.log('Widget data-date:', widget.getAttribute('data-date'));
+                    console.log('Widget innerHTML length:', widget.innerHTML.length);
+                    
+                    if (widget.innerHTML.trim() && widget.innerHTML.trim() !== '') {{
+                        console.log('Widget has content!');
+                        if (loading) loading.style.display = 'none';
+                        return true;
+                    }}
+                }}
+                
+                if (checkCount >= maxChecks) {{
+                    console.log('Max checks reached, stopping...');
+                    if (loading) loading.innerHTML = 'Error: Widget failed to load';
+                    return false;
+                }}
+                
+                setTimeout(checkWidgetContent, 1000);
+                return false;
+            }}
+            
+            // Start checking after a brief delay
+            setTimeout(checkWidgetContent, 2000);
+        </script>
+    </body>
+    </html>
+    """
+    
+    print(f"Requesting WOD for specific date: {formatted_date}")
+    
+    try:
+        with sync_playwright() as p:
+            # Launch browser with more robust settings for containerized environment
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-gpu',
+                    '--no-zygote',
+                    '--single-process'
+                ]
+            )
+            
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                viewport={'width': 1280, 'height': 720},
+                # Allow external resources
+                permissions=['geolocation']
+            )
+            
+            page = context.new_page()
+            
+            # Enhanced console logging
+            def handle_console(msg):
+                msg_type = msg.type
+                msg_text = msg.text
+                print(f"Browser console [{msg_type}]: {msg_text}")
+                # Look for specific error patterns
+                if 'error' in msg_type.lower() or 'failed' in msg_text.lower():
+                    print(f"⚠️  Potential issue: {msg_text}")
+            
+            page.on("console", handle_console)
+            
+            # Handle page errors
+            page.on("pageerror", lambda err: print(f"Page error: {err}"))
+            
+            # Handle network failures
+            page.on("requestfailed", lambda request: print(f"Network request failed: {request.url}"))
+            
+            # Set the HTML content
+            page.set_content(temp_html, wait_until="networkidle")
+            
+            # Wait for the widget to appear
+            try:
+                print("Waiting for widget to appear...")
+                page.wait_for_selector(".btwb_webwidget", timeout=30000)
+                print("Widget selector found!")
+            except Exception as e:
+                print(f"Warning: Widget selector not found: {e}")
+            
+            # Wait for external resources to load
+            print("Waiting for network to be idle...")
+            try:
+                page.wait_for_load_state("networkidle", timeout=20000)
+            except Exception as e:
+                print(f"Network idle timeout: {e}")
+            
+            # Additional wait for JavaScript execution
+            print("Waiting for JavaScript to process...")
+            page.wait_for_timeout(15000)  # 15 second wait
+            
+            # Check widget attributes
+            try:
+                widget_date = page.get_attribute(".btwb_webwidget", "data-date")
+                print(f"Widget data-date attribute: {widget_date}")
+            except Exception as e:
+                print(f"Could not get widget date attribute: {e}")
+            
+            # Try multiple selectors to get content
+            text = ""
+            selectors_to_try = [
+                ".btwb_webwidget",
+                ".btwb_webwidget .wod",
+                ".btwb_webwidget .workout",
+                "body"
+            ]
+            
+            for selector in selectors_to_try:
+                try:
+                    text = page.inner_text(selector)
+                    if text and text.strip() and "loading" not in text.lower():
+                        print(f"Got content from selector: {selector}")
+                        break
+                except Exception as e:
+                    print(f"Failed to get text from {selector}: {e}")
+                    continue
+            
+            # Enhanced debugging
+            try:
+                html_content = page.inner_html(".btwb_webwidget")
+                print(f"=== DEBUG: Widget HTML content ===")
+                print(html_content[:1000] + "..." if len(html_content) > 1000 else html_content)
+                print("=== END HTML DEBUG ===")
+            except Exception as e:
+                print(f"Could not get widget HTML: {e}")
+                
+            # Try to get the full page HTML as fallback
+            if not text or text.strip() == "":
+                try:
+                    full_html = page.content()
+                    # Extract any workout-related content from the full HTML
+                    if "workout" in full_html.lower() or "wod" in full_html.lower():
+                        print("Found workout-related content in full HTML")
+                        # You might want to add more sophisticated parsing here
+                except Exception as e:
+                    print(f"Could not get full page HTML: {e}")
+            
+            browser.close()
+            
+            print(f"=== Final scraped text (length: {len(text) if text else 0}) ===")
+            print(repr(text[:500]) if text else "No text found")
+            print("=== END FINAL TEXT ===")
+            
+            return text
+            
+    except Exception as e:
+        print(f"Critical error in scraping: {e}")
+        import traceback
+        traceback.print_exc()
+        return ""
+
+
+def parse_wod_text_to_json(text):
+    """
+    Enhanced parser to handle multiple workouts with CSC-specific filtering
+    """
+    print(f"=== DEBUG: Raw scraped text ===")
+    print(repr(text))
+    print("=== END RAW TEXT DEBUG ===")
+    
+    # Phrases to filter out from workout text
+    filter_phrases = [
+        ", pick load", "pick load", "workout brief", ", scale as needed",
+        "scale as needed", ", modify as needed", "modify as needed",
+        ", rx+", "rx+", ", beginner", "beginner:", ", intermediate",
+        "intermediate:", ", advanced", "advanced:"
+    ]
+    
+    # Common prefixes to filter out (case insensitive)
+    prefix_filters = [
+        "main:", "ft:", "amrap:", "emom:", "tabata:", "strength:",
+        "metcon:", "conditioning:", "warmup:", "warm-up:", "cool-down:",
+        "cooldown:", "accessory:", "skills:", "mobility:"
+    ]
+    
+    # Clean the text by removing filter phrases (case insensitive)
+    cleaned_text = text
+    for phrase in filter_phrases:
+        cleaned_text = cleaned_text.replace(phrase.lower(), "")
+        cleaned_text = cleaned_text.replace(phrase.upper(), "")
+        cleaned_text = cleaned_text.replace(phrase.title(), "")
+    
+    lines = [line.strip() for line in cleaned_text.splitlines() if line.strip()]
+    
+    print(f"=== DEBUG: Cleaned lines ===")
+    for i, line in enumerate(lines):
+        print(f"{i}: {repr(line)}")
+    print("=== END CLEANED LINES DEBUG ===")
+    
+    if not lines:
+        return [{"title": "No WOD Found", "movements": ["Try a different date."]}]
+    
+    # Skip the first two lines as requested in original code
+    if len(lines) > 2:
+        lines = lines[2:]
+        print(f"Skipped first 2 lines, now have {len(lines)} lines")
+    
+    # Try to detect multiple workouts
+    workouts = []
+    current_workout = None
+    
+    # Patterns that might indicate a new workout section
+    workout_indicators = [
+        r'^(strength|metcon|conditioning|amrap|emom|tabata|for time|every|rounds?|min|minutes?)',
+        r'^\d+\s*(rounds?|min|minutes?|reps?)',
+        r'^(part [a-z]|section [a-z]|\d+\)|\d+\.)',
+        r'^(wod|workout)',
+    ]
+    
+    for line in lines:
+        # === CSC-SPECIFIC FILTERING ===
+        
+        # CSC WOD: Filter out RemReps patterns
+        # Pattern: "5x 4 mins RemReps: Assault Bikes, Alternating Dumbbell Snatch..."
+        if "remreps" in line.lower():
+            print(f"CSC WOD: Filtering out RemReps line: {line}")
+            continue
+        
+        # Also filter out lines that start with patterns like "5x 4 mins" followed by RemReps
+        if re.match(r'^\d+x\s+\d+\s+mins?\s+remreps', line.lower()):
+            print(f"CSC WOD: Filtering out RemReps pattern: {line}")
+            continue
+        
+        # === END CSC REMREPS FILTERING ===
+        
+        # Check if this line starts with any filtered prefix
+        should_skip = False
+        for prefix in prefix_filters:
+            if line.lower().startswith(prefix.lower()):
+                should_skip = True
+                print(f"Filtering out line with prefix '{prefix}': {line}")
+                break
+        
+        if should_skip:
+            continue
+        
+        # Clean the line
+        cleaned_line = line.strip()
+        for phrase in filter_phrases:
+            cleaned_line = cleaned_line.replace(phrase.lower(), "")
+            cleaned_line = cleaned_line.replace(phrase.upper(), "")
+            cleaned_line = cleaned_line.replace(phrase.title(), "")
+        
+        cleaned_line = cleaned_line.strip().strip(',').strip()
+        
+        if not cleaned_line:
+            continue
+        
+        # === EXISTING CSC-SPECIFIC FILTERING ===
+        
+        # CSC WOD: Remove everything after "AMRAP X" (including "mins", "min", "minutes")
+        if cleaned_line.lower().startswith("amrap"):
+            # Look for AMRAP pattern and truncate after the number
+            amrap_match = re.search(r'(amrap\s+\d+)', cleaned_line.lower())
+            if amrap_match:
+                amrap_end = amrap_match.end()
+                cleaned_line = cleaned_line[:amrap_end]
+                print(f"CSC WOD: Truncated AMRAP line to: {cleaned_line}")
+        
+        # CSC WOD: Skip lines that start with "Complete as many" or similar
+        if (cleaned_line.lower().startswith("complete as many") or
+            cleaned_line.lower().startswith("complete as man") or
+            cleaned_line.lower().startswith("as many rounds as possible")):
+            print(f"CSC WOD: Skipping explanatory line: {cleaned_line}")
+            continue
+        
+        # CSC Strength: Skip header lines that start with patterns like "3RFQ:", "3 RFQ:", etc.
+        if (re.match(r'^\d+\s*[a-zA-Z]+:', cleaned_line) and 
+            not cleaned_line.lower().startswith("csc")):
+            print(f"CSC Strength: Skipping header line: {cleaned_line}")
+            continue
+        
+        # === END EXISTING CSC-SPECIFIC FILTERING ===
+        
+        # Check if this might be a new workout title
+        is_potential_title = False
+        for pattern in workout_indicators:
+            if re.search(pattern, cleaned_line.lower()):
+                is_potential_title = True
+                break
+        
+        # Also check for common title patterns
+        title_patterns = [
+            r'^[A-Z][A-Z\s]+$',  # All caps titles
+            r'^\d+\s*x\s*\d+',   # "5 x 3" patterns
+            r'^every\s+\d+',     # "Every 2 min"
+            r'^\d+\s*rounds?',   # "5 rounds"
+            r'^csc\s+(wod|strength)',  # CSC WOD or CSC Strength
+        ]
+        
+        for pattern in title_patterns:
+            if re.search(pattern, cleaned_line, re.IGNORECASE):
+                is_potential_title = True
+                break
+        
+        # If we think this is a title and we already have a workout started, save the previous one
+        if is_potential_title and current_workout and current_workout.get("movements"):
+            workouts.append(current_workout)
+            current_workout = None
+        
+        # Start a new workout if we think this is a title
+        if is_potential_title and not current_workout:
+            current_workout = {
+                "title": cleaned_line,
+                "movements": []
+            }
+            print(f"Starting new workout: {cleaned_line}")
+        elif current_workout:
+            # Add to current workout movements
+            current_workout["movements"].append(cleaned_line)
+        else:
+            # If we don't have a current workout, start one with generic title
+            if not workouts:  # Only if this is the first line
+                current_workout = {
+                    "title": cleaned_line,
+                    "movements": []
+                }
+    
+    # Don't forget the last workout
+    if current_workout:
+        workouts.append(current_workout)
+    
+    # If we didn't find any workouts, create a single workout from all lines
+    if not workouts and lines:
+        workouts = [{
+            "title": lines[0] if lines else "WOD",
+            "movements": lines[1:] if len(lines) > 1 else []
+        }]
+    
+    print(f"=== DEBUG: Final parsed workouts ===")
+    for i, workout in enumerate(workouts):
+        print(f"Workout {i+1}: {workout['title']}")
+        print(f"  Movements: {workout['movements']}")
+    print("=== END WORKOUT DEBUG ===")
+    
+    return workouts
+
+
 def get_wod_by_date(date_str):
+    """
+    Main function to get WOD data - can be extended to use scraper or fallback to sample data
+    """
+    # For now, just return sample data
+    # In the future, you could add logic here to try scraping first, then fallback to sample
     return get_sample_wod(date_str)
+
 
 def generate_image(wod_data):
     """
@@ -126,6 +532,13 @@ def generate_image(wod_data):
     
     # Check for font files and load them
     font_path = "Fonts/Staatliches-Regular.ttf"
+    
+    # Debug file system
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Files in current directory: {os.listdir('.')}")
+    print(f"Fonts directory exists: {os.path.exists('fonts')}")
+    if os.path.exists('fonts'):
+        print(f"Files in fonts directory: {os.listdir('fonts')}")
     
     # Load fonts with proper error handling
     try:
@@ -284,6 +697,9 @@ def generate_image(wod_data):
         footer_text = f"WORKOUT OF THE DAY {wod_date.strftime('%B %d, %Y')}"
     except:
         footer_text = f"WORKOUT OF THE DAY {wod_data['date']}"
+
+   
+    
 
     # Draw footer text at bottom of image
     footer_y = 1850
