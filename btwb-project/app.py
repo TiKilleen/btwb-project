@@ -1,4 +1,4 @@
-from flask import Flask, send_file, request, render_template_string
+from flask import Flask, send_file, request, render_template
 from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 import io
@@ -725,37 +725,24 @@ def home():
     ''')
 
 
+@app.route("/")
+def home():
+    default_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    return render_template("home.html", default_date=default_date)
+
 @app.route("/generate")
 def generate():
     date_str = request.args.get("date")
-    if not date_str:
-        date_str = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    # BTWB widget HTML (data-days will be dynamically updated)
-    widget_html = '''<div class="btwb_webwidget" data-type="wods" data-sections="main" data-track_ids=310497 data-activity_length="0" data-leaderboard_length="0" data-days="0"></div><script id="btwb_config" data-api_key=apry1ewoh2ssxeanwyne8lldq></script>'''
-    
-    try:
-        print(f"Scraping BTWB widget for date: {date_str}")
-        raw_wod_text = scrape_btwb_wod(widget_html, date_str)
-        print(f"Raw WOD text: {raw_wod_text}")
-        
-        if raw_wod_text and raw_wod_text.strip():
-            workouts = parse_wod_text_to_json(raw_wod_text)
-            wod_data = {
-                "date": date_str,
-                "workouts": workouts
-            }
-            print("Successfully parsed BTWB data")
-        else:
-            print("No WOD text found, using sample data")
-            wod_data = get_sample_wod(date_str)
-            
-    except Exception as e:
-        print(f"Error scraping BTWB widget: {e}")
-        wod_data = get_sample_wod(date_str)
+    wod_data = get_wod_by_date(date_str)
 
     img_io = generate_image(wod_data)
-    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='btwb_wod.png')
+
+    # Save image temporarily so we can display it
+    image_path = os.path.join("static", "preview.png")
+    with open(image_path, "wb") as f:
+        f.write(img_io.getvalue())
+
+    return render_template("home.html", default_date=date_str, image_url=url_for("static", filename="preview.png"))
 
 
 def get_wod_by_date(date_str):
