@@ -711,18 +711,7 @@ def generate_image(wod_data):
     return img_io
 
 
-@app.route("/")
-def home():
-    tomorrow = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-    return render_template_string(f'''
-        <h1>Generate BTWB Workout Poster</h1>
-        <form action="/generate" method="get">
-            <label for="date">Enter a date (YYYY-MM-DD):</label>
-            <input type="text" name="date" id="date" value="{tomorrow}" required>
-            <button type="submit">Generate</button>
-        </form>
-        <p><em>Note: Future dates will be fetched from BTWB if available</em></p>
-    ''')
+
 
 
 @app.route("/")
