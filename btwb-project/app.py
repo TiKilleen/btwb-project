@@ -1,4 +1,4 @@
-from flask import Flask, send_file, request, render_template
+from flask import Flask, send_file, request, render_template, url_for
 from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import sync_playwright
 import io
@@ -711,13 +711,11 @@ def generate_image(wod_data):
     return img_io
 
 
-
-
-
 @app.route("/")
 def home():
     default_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
     return render_template("home.html", default_date=default_date)
+
 
 @app.route("/generate")
 def generate():
@@ -727,11 +725,14 @@ def generate():
     img_io = generate_image(wod_data)
 
     # Save image temporarily so we can display it
+    os.makedirs("static", exist_ok=True)  # Ensure static directory exists
     image_path = os.path.join("static", "preview.png")
     with open(image_path, "wb") as f:
         f.write(img_io.getvalue())
 
-    return render_template("home.html", default_date=date_str, image_url=url_for("static", filename="preview.png"))
+    # Reset the BytesIO object for the return
+    img_io.seek(0)
+    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
 
 
 def get_wod_by_date(date_str):
