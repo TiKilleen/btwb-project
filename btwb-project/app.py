@@ -730,9 +730,26 @@ def generate():
     with open(image_path, "wb") as f:
         f.write(img_io.getvalue())
 
-    # Reset the BytesIO object for the return
+    # Reset the BytesIO object and return the image directly
     img_io.seek(0)
     return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
+
+
+@app.route("/preview")
+def preview():
+    """Route to display the form with the generated image"""
+    date_str = request.args.get("date")
+    if not date_str:
+        date_str = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    # Check if preview image exists
+    image_path = os.path.join("static", "preview.png")
+    image_url = None
+    if os.path.exists(image_path):
+        from flask import url_for
+        image_url = url_for("static", filename="preview.png")
+    
+    return render_template("home.html", default_date=date_str, image_url=image_url)
 
 
 def get_wod_by_date(date_str):
