@@ -420,10 +420,10 @@ def generate_image(wod_data):
     
     # Load fonts
     try:
-        title_font = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", 54)
-        header_font = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", 42)
-        movement_font = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", 42)
-        footer_font = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", 32)
+        title_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 54)
+        header_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 42)
+        movement_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 42)
+        footer_font = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 32)
     except:
         title_font = header_font = movement_font = footer_font = ImageFont.load_default()
         print("Using default fonts")
@@ -575,7 +575,7 @@ def generate_image(wod_data):
 
     # Draw footer text at bottom of image
     footer_y = 1850
-    footer_font_large = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", 48)
+    footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 48)
     
     # Calculate text width and scale to fit image width minus border padding
     available_width = 1080 - (border_padding * 2) - 20
@@ -584,7 +584,7 @@ def generate_image(wod_data):
     if text_width > available_width:
         scale_factor = available_width / text_width
         new_font_size = int(48 * scale_factor)
-        footer_font_large = ImageFont.truetype("/Users/timkilleen/Library/Fonts/Staatliches-Regular.ttf", new_font_size)
+        footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", new_font_size)
     
     draw.text((center_x, footer_y), footer_text, font=footer_font_large, fill="black", anchor="mm")
 
