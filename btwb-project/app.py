@@ -719,44 +719,51 @@ def home():
 
 @app.route("/generate")
 def generate():
-    date_str = request.args.get("date")
-    wod_data = get_wod_by_date(date_str)
-
-    img_io = generate_image(wod_data)
-
-    # Save image temporarily so we can display it
-    os.makedirs("static", exist_ok=True)  # Ensure static directory exists
-    image_path = os.path.join("static", "preview.png")
-    with open(image_path, "wb") as f:
-        f.write(img_io.getvalue())
-
-    # Reset the BytesIO object and return the image directly
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
-
-
-@app.route("/preview")
-def preview():
-    """Route to display the form with the generated image"""
+    print("=== DEBUG: /generate route called ===")
     date_str = request.args.get("date")
     if not date_str:
         date_str = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
     
-    # Check if preview image exists
-    image_path = os.path.join("static", "preview.png")
-    image_url = None
-    if os.path.exists(image_path):
-        from flask import url_for
-        image_url = url_for("static", filename="preview.png")
+    print(f"Date parameter: {date_str}")
     
-    return render_template("home.html", default_date=date_str, image_url=image_url)
+    wod_data = get_wod_by_date(date_str)
+    print(f"WOD data: {wod_data}")
+
+    img_io = generate_image(wod_data)
+
+    # Save image temporarily
+    os.makedirs("static", exist_ok=True)
+    image_path = os.path.join("static", "preview.png")
+    with open(image_path, "wb") as f:
+        f.write(img_io.getvalue())
+    
+    print(f"Image saved to: {image_path}")
+
+    # Reset and return the image
+    img_io.seek(0)
+    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
+
+
+@app.route("/debug")
+def debug():
+    """Debug route to test if Flask is running"""
+    return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p><p>Debug route successful</p>"
+
+
+@app.route("/health")
+def health():
+    """Health check for Render"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
 def get_wod_by_date(date_str):
-    # This will eventually pull real WOD data
     return get_sample_wod(date_str)
 
 
 if __name__ == '__main__':
+    print("=== Starting Flask App ===")
+    print(f"Templates folder exists: {os.path.exists('templates')}")
+    print(f"home.html exists: {os.path.exists('templates/home.html')}")
+    
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)
