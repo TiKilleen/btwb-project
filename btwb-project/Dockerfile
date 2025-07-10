@@ -13,7 +13,7 @@ RUN pip install -r requirements.txt
 COPY btwb-project/ .
 
 # Expose port (adjust if your app uses a different port)
-EXPOSE 8000
+EXPOSE $PORT
 
 # Command to run your application (replace 'app.py' with your main file)
 CMD ["python", "app.py"]
