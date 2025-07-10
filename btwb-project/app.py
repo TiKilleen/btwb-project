@@ -416,7 +416,7 @@ def generate_image(wod_data):
     draw = ImageDraw.Draw(img)
     
     # Check for font files and load them
-    font_path = "fonts/Staatliches-Regular.ttf"
+    font_path = "Fonts/Staatliches-Regular.ttf"
     
     # Debug file system
     print(f"Current working directory: {os.getcwd()}")
