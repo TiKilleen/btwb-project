@@ -647,5 +647,6 @@ def get_wod_by_date(date_str):
     return get_sample_wod(date_str)
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port, debug=False)
