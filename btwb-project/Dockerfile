@@ -12,7 +12,11 @@ RUN pip install -r requirements.txt
 # Copy all project files
 COPY btwb-project/ .
 
-# Expose port (adjust if your app uses a different port)
+# Debug: List files to see what got copied
+RUN ls -la
+RUN ls -la fonts/ || echo "fonts directory not found"
+
+# Expose port (Render will set the PORT environment variable)
 EXPOSE $PORT
 
 # Command to run your application (replace 'app.py' with your main file)
