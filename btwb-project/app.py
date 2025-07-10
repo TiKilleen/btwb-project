@@ -117,8 +117,7 @@ CLASS_SCHEDULE = {
 
 def scrape_btwb_wod(widget_html, target_date_str):
     """
-    Scrapes BTWB workout data from a page containing the widget HTML
-    Modified to use data-date instead of data-days for absolute date specification
+    Improved BTWB scraper with better error handling and container compatibility
     """
     # Parse the target date to ensure it's in the correct format
     try:
@@ -130,11 +129,7 @@ def scrape_btwb_wod(widget_html, target_date_str):
         formatted_date = target_date_str
     
     # Replace data-days="0" with data-date="YYYY-M-D"
-    # First remove any existing data-days attribute
     updated_widget_html = re.sub(r'data-days="[^"]*"', '', widget_html)
-    
-    # Add the data-date attribute
-    # Insert it before the closing > of the div tag
     updated_widget_html = updated_widget_html.replace(
         'data-track_ids=310497',
         f'data-track_ids=310497 data-date="{formatted_date}"'
@@ -143,31 +138,63 @@ def scrape_btwb_wod(widget_html, target_date_str):
     print(f"=== DEBUG: Widget HTML update ===")
     print(f"Target date: {target_date_str}")
     print(f"Formatted date: {formatted_date}")
-    print(f"Original: {widget_html}")
-    print(f"Updated: {updated_widget_html}")
     print("=== END WIDGET DEBUG ===")
     
-    # Create a temporary HTML page with the widget
+    # Create a more robust HTML page with better error handling
     temp_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="UTF-8">
         <title>BTWB Widget</title>
         <link rel="stylesheet" href="https://static.btwb.com/libs/webwidgets/2/webwidgets.css">
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+        <style>
+            body {{ font-family: Arial, sans-serif; padding: 20px; }}
+            .loading {{ color: #666; }}
+            .error {{ color: #ff0000; }}
+        </style>
     </head>
     <body>
+        <div id="loading" class="loading">Loading workout data...</div>
         {updated_widget_html}
         <script type="text/javascript" src="https://static.btwb.com/libs/webwidgets/2/webwidgets.js"></script>
         <script>
-            // Debug script to check if widget is loading with correct date
-            setTimeout(function() {{
-                console.log('Widget loaded, checking date...');
+            console.log('Widget initialization starting...');
+            
+            // Monitor for content changes
+            var checkCount = 0;
+            var maxChecks = 30; // 30 seconds max
+            
+            function checkWidgetContent() {{
+                checkCount++;
                 var widget = document.querySelector('.btwb_webwidget');
+                var loading = document.getElementById('loading');
+                
                 if (widget) {{
+                    console.log('Widget found, checking content...');
                     console.log('Widget data-date:', widget.getAttribute('data-date'));
+                    console.log('Widget innerHTML length:', widget.innerHTML.length);
+                    
+                    if (widget.innerHTML.trim() && widget.innerHTML.trim() !== '') {{
+                        console.log('Widget has content!');
+                        if (loading) loading.style.display = 'none';
+                        return true;
+                    }}
                 }}
-            }}, 5000);
+                
+                if (checkCount >= maxChecks) {{
+                    console.log('Max checks reached, stopping...');
+                    if (loading) loading.innerHTML = 'Error: Widget failed to load';
+                    return false;
+                }}
+                
+                setTimeout(checkWidgetContent, 1000);
+                return false;
+            }}
+            
+            // Start checking after a brief delay
+            setTimeout(checkWidgetContent, 2000);
         </script>
     </body>
     </html>
@@ -175,51 +202,130 @@ def scrape_btwb_wod(widget_html, target_date_str):
     
     print(f"Requesting WOD for specific date: {formatted_date}")
     
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
-        page = context.new_page()
-        
-        # Enable console logging to see any JavaScript errors
-        page.on("console", lambda msg: print(f"Browser console: {msg.text}"))
-        
-        # Set the HTML content instead of navigating to a URL
-        page.set_content(temp_html)
-        
-        # Wait for the widget to load - look for content to appear
-        try:
-            # Wait for the widget to populate with content
-            page.wait_for_selector(".btwb_webwidget", timeout=30000)
+    try:
+        with sync_playwright() as p:
+            # Launch browser with more robust settings for containerized environment
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-gpu',
+                    '--no-zygote',
+                    '--single-process'
+                ]
+            )
             
-            # Let's try waiting for the JavaScript to fully execute
-            print("Waiting for widget to load...")
-            time.sleep(10)  # Give more time for the widget to process the date
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                viewport={'width': 1280, 'height': 720},
+                # Allow external resources
+                permissions=['geolocation']
+            )
             
-            # Check if the widget attribute is set correctly
-            widget_date = page.get_attribute(".btwb_webwidget", "data-date")
-            print(f"Widget data-date attribute: {widget_date}")
+            page = context.new_page()
             
-            # Try to get text content
-            text = page.inner_text(".btwb_webwidget")
+            # Enhanced console logging
+            def handle_console(msg):
+                msg_type = msg.type
+                msg_text = msg.text
+                print(f"Browser console [{msg_type}]: {msg_text}")
+                # Look for specific error patterns
+                if 'error' in msg_type.lower() or 'failed' in msg_text.lower():
+                    print(f"⚠️  Potential issue: {msg_text}")
             
-            if not text or text.strip() == "":
-                # If still empty, wait a bit more and try again
-                print("Empty text, waiting longer...")
-                time.sleep(5)
-                text = page.inner_text(".btwb_webwidget")
+            page.on("console", handle_console)
             
-            # Enhanced debugging - let's see the HTML structure too
-            html_content = page.inner_html(".btwb_webwidget")
-            print(f"=== DEBUG: Raw HTML content for {formatted_date} ===")
-            print(html_content[:500] + "..." if len(html_content) > 500 else html_content)
-            print("=== END HTML DEBUG ===")
-                
-        except Exception as e:
-            print(f"Error waiting for widget content: {e}")
+            # Handle page errors
+            page.on("pageerror", lambda err: print(f"Page error: {err}"))
+            
+            # Handle network failures
+            page.on("requestfailed", lambda request: print(f"Network request failed: {request.url}"))
+            
+            # Set the HTML content
+            page.set_content(temp_html, wait_until="networkidle")
+            
+            # Wait for the widget to appear
+            try:
+                print("Waiting for widget to appear...")
+                page.wait_for_selector(".btwb_webwidget", timeout=30000)
+                print("Widget selector found!")
+            except Exception as e:
+                print(f"Warning: Widget selector not found: {e}")
+            
+            # Wait for external resources to load
+            print("Waiting for network to be idle...")
+            try:
+                page.wait_for_load_state("networkidle", timeout=20000)
+            except Exception as e:
+                print(f"Network idle timeout: {e}")
+            
+            # Additional wait for JavaScript execution
+            print("Waiting for JavaScript to process...")
+            page.wait_for_timeout(15000)  # 15 second wait
+            
+            # Check widget attributes
+            try:
+                widget_date = page.get_attribute(".btwb_webwidget", "data-date")
+                print(f"Widget data-date attribute: {widget_date}")
+            except Exception as e:
+                print(f"Could not get widget date attribute: {e}")
+            
+            # Try multiple selectors to get content
             text = ""
-        
-        browser.close()
-        return text
+            selectors_to_try = [
+                ".btwb_webwidget",
+                ".btwb_webwidget .wod",
+                ".btwb_webwidget .workout",
+                "body"
+            ]
+            
+            for selector in selectors_to_try:
+                try:
+                    text = page.inner_text(selector)
+                    if text and text.strip() and "loading" not in text.lower():
+                        print(f"Got content from selector: {selector}")
+                        break
+                except Exception as e:
+                    print(f"Failed to get text from {selector}: {e}")
+                    continue
+            
+            # Enhanced debugging
+            try:
+                html_content = page.inner_html(".btwb_webwidget")
+                print(f"=== DEBUG: Widget HTML content ===")
+                print(html_content[:1000] + "..." if len(html_content) > 1000 else html_content)
+                print("=== END HTML DEBUG ===")
+            except Exception as e:
+                print(f"Could not get widget HTML: {e}")
+                
+            # Try to get the full page HTML as fallback
+            if not text or text.strip() == "":
+                try:
+                    full_html = page.content()
+                    # Extract any workout-related content from the full HTML
+                    if "workout" in full_html.lower() or "wod" in full_html.lower():
+                        print("Found workout-related content in full HTML")
+                        # You might want to add more sophisticated parsing here
+                except Exception as e:
+                    print(f"Could not get full page HTML: {e}")
+            
+            browser.close()
+            
+            print(f"=== Final scraped text (length: {len(text) if text else 0}) ===")
+            print(repr(text[:500]) if text else "No text found")
+            print("=== END FINAL TEXT ===")
+            
+            return text
+            
+    except Exception as e:
+        print(f"Critical error in scraping: {e}")
+        import traceback
+        traceback.print_exc()
+        return ""
 
 
 def parse_wod_text_to_json(text):
