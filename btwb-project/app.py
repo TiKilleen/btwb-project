@@ -417,6 +417,20 @@ def generate_image(wod_data):
     img = Image.new('RGB', (1080, 1920), color='white')
     draw = ImageDraw.Draw(img)
     font_path = os.path.join(os.path.dirname(__file__), "Staatliches-Regular.ttf")
+
+import os
+print(f"Current working directory: {os.getcwd()}")
+print(f"Files in current directory: {os.listdir('.')}")
+print(f"Fonts directory exists: {os.path.exists('fonts')}")
+if os.path.exists('fonts'):
+    print(f"Files in fonts directory: {os.listdir('fonts')}")
+
+try:
+    footer_font_large = ImageFont.truetype("fonts/Staatliches-Regular.ttf", 48)
+except OSError as e:
+    print(f"Font loading error: {e}")
+    # Use fallback font for now
+    footer_font_large = ImageFont.load_default()
     
     # Load fonts
     try:
