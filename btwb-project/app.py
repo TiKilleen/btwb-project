@@ -594,7 +594,7 @@ def parse_wod_text_to_json(text):
         
         # Also check for common title patterns
         title_patterns = [
-            r'^[A-Z][A-Z\s]+
+            r'^[A-Z][A-Z\s]+$'
 
 
 def generate_image(wod_data):
