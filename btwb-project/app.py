@@ -69,6 +69,17 @@ def get_sample_wod(date_str):
                     "Min 4: 20 Mountain Climbers"
                 ]
             }
+        ],
+        "2025-07-11": [
+            {
+                "title": "CSC WOD",
+                "movements": [
+                    "AMRAP 15",
+                    "10 Pull-Ups",
+                    "15 Push-Ups", 
+                    "20 Air Squats"
+                ]
+            }
         ]
     }
 
@@ -130,9 +141,14 @@ def scrape_btwb_wod(target_date_str):
         target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
         # Format the date as BTWB expects it (YYYY-M-D format, not zero-padded)
         formatted_date = f"{target_date.year}-{target_date.month}-{target_date.day}"
+        # Also try different date formats
+        iso_date = target_date.strftime("%Y-%m-%d")  # ISO format with zero padding
+        alt_date = target_date.strftime("%m/%d/%Y")  # MM/DD/YYYY format
     except Exception as e:
         print(f"Error parsing target date: {e}")
         formatted_date = target_date_str
+        iso_date = target_date_str
+        alt_date = target_date_str
     
     # Replace data-days="0" with data-date="YYYY-M-D" for specific date targeting
     updated_widget_html = re.sub(r'data-days="[^"]*"', '', widget_html)
@@ -141,10 +157,12 @@ def scrape_btwb_wod(target_date_str):
         f'data-track_ids=310497 data-date="{formatted_date}"'
     )
     
-    print(f"=== DEBUG: Widget HTML update ===")
-    print(f"Target date: {target_date_str}")
-    print(f"Formatted date: {formatted_date}")
-    print("=== END WIDGET DEBUG ===")
+    print(f"=== DEBUG: Date formatting ===")
+    print(f"Original date: {target_date_str}")
+    print(f"BTWB formatted date: {formatted_date}")
+    print(f"ISO formatted date: {iso_date}")
+    print(f"Alt formatted date: {alt_date}")
+    print("=== END DATE DEBUG ===")
     
     # Create a more robust HTML page with your BTWB widget
     temp_html = f"""
@@ -163,37 +181,71 @@ def scrape_btwb_wod(target_date_str):
     </head>
     <body>
         <div id="loading" class="loading">Loading workout data...</div>
+        <div id="debug-info">
+            <p>Requesting date: {formatted_date}</p>
+            <p>Track ID: 310497</p>
+        </div>
         {updated_widget_html}
         <script id="btwb_config" data-api_key=apry1ewoh2ssxeanwyne8lldq></script>
         <script type="text/javascript" src="https://static.btwb.com/libs/webwidgets/2/webwidgets.js"></script>
         <script>
-            console.log('Widget initialization starting...');
+            console.log('=== BTWB Widget Debug ===');
             console.log('Target date: {formatted_date}');
+            console.log('Track ID: 310497');
+            console.log('API Key present:', document.querySelector('#btwb_config').getAttribute('data-api_key') ? 'YES' : 'NO');
             
-            // Monitor for content changes
+            // Check if widget exists
+            var widget = document.querySelector('.btwb_webwidget');
+            if (widget) {{
+                console.log('Widget found!');
+                console.log('Widget attributes:', {{
+                    'data-type': widget.getAttribute('data-type'),
+                    'data-sections': widget.getAttribute('data-sections'),
+                    'data-track_ids': widget.getAttribute('data-track_ids'),
+                    'data-date': widget.getAttribute('data-date')
+                }});
+            }} else {{
+                console.log('ERROR: Widget not found!');
+            }}
+            
+            // Monitor for content changes with more detailed logging
             var checkCount = 0;
-            var maxChecks = 30; // 30 seconds max
+            var maxChecks = 40; // Increase timeout to 40 seconds
             
             function checkWidgetContent() {{
                 checkCount++;
                 var widget = document.querySelector('.btwb_webwidget');
                 var loading = document.getElementById('loading');
                 
+                console.log(`Check ${{checkCount}}: Widget exists: ${{!!widget}}`);
+                
                 if (widget) {{
-                    console.log('Widget found, checking content...');
-                    console.log('Widget data-date:', widget.getAttribute('data-date'));
-                    console.log('Widget innerHTML length:', widget.innerHTML.length);
+                    console.log(`Check ${{checkCount}}: Widget innerHTML length: ${{widget.innerHTML.length}}`);
+                    console.log(`Check ${{checkCount}}: Widget content preview: ${{widget.innerHTML.slice(0, 200)}}`);
                     
-                    if (widget.innerHTML.trim() && widget.innerHTML.trim() !== '') {{
-                        console.log('Widget has content!');
-                        if (loading) loading.style.display = 'none';
+                    // Look for specific BTWB content indicators
+                    var hasContent = widget.innerHTML.trim() && 
+                                   widget.innerHTML.trim() !== '' && 
+                                   !widget.innerHTML.includes('Loading workout data');
+                    
+                    var hasWorkoutContent = widget.innerHTML.includes('wod') || 
+                                          widget.innerHTML.includes('workout') ||
+                                          widget.innerHTML.includes('amrap') ||
+                                          widget.innerHTML.includes('rounds') ||
+                                          widget.innerHTML.includes('time');
+                    
+                    console.log(`Check ${{checkCount}}: Has content: ${{hasContent}}, Has workout content: ${{hasWorkoutContent}}`);
+                    
+                    if (hasContent && hasWorkoutContent) {{
+                        console.log('SUCCESS: Widget has workout content!');
+                        if (loading) loading.innerHTML = 'Workout data loaded!';
                         return true;
                     }}
                 }}
                 
                 if (checkCount >= maxChecks) {{
-                    console.log('Max checks reached, stopping...');
-                    if (loading) loading.innerHTML = 'Error: Widget failed to load';
+                    console.log('TIMEOUT: Max checks reached');
+                    if (loading) loading.innerHTML = 'Error: Widget failed to load workout data';
                     return false;
                 }}
                 
@@ -201,14 +253,14 @@ def scrape_btwb_wod(target_date_str):
                 return false;
             }}
             
-            // Start checking after a brief delay
-            setTimeout(checkWidgetContent, 2000);
+            // Start checking after widget initialization
+            setTimeout(checkWidgetContent, 3000); // Wait 3 seconds before first check
         </script>
     </body>
     </html>
     """
     
-    print(f"Requesting WOD for specific date: {formatted_date}")
+    print(f"=== Starting BTWB scrape for date: {formatted_date} ===")
     
     try:
         with sync_playwright() as p:
@@ -223,15 +275,14 @@ def scrape_btwb_wod(target_date_str):
                     '--disable-features=VizDisplayCompositor',
                     '--disable-gpu',
                     '--no-zygote',
-                    '--single-process'
+                    '--single-process',
+                    '--disable-blink-features=AutomationControlled'  # Help avoid detection
                 ]
             )
             
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                viewport={'width': 1280, 'height': 720},
-                # Allow external resources
-                permissions=['geolocation']
+                viewport={'width': 1280, 'height': 720}
             )
             
             page = context.new_page()
@@ -241,46 +292,65 @@ def scrape_btwb_wod(target_date_str):
                 msg_type = msg.type
                 msg_text = msg.text
                 print(f"Browser console [{msg_type}]: {msg_text}")
-                # Look for specific error patterns
-                if 'error' in msg_type.lower() or 'failed' in msg_text.lower():
-                    print(f"⚠️  Potential issue: {msg_text}")
             
             page.on("console", handle_console)
             
             # Handle page errors
             page.on("pageerror", lambda err: print(f"Page error: {err}"))
             
-            # Handle network failures
+            # Handle network failures and monitor network requests
+            def handle_request(request):
+                if 'btwb' in request.url.lower():
+                    print(f"BTWB network request: {request.method} {request.url}")
+            
+            def handle_response(response):
+                if 'btwb' in response.url.lower():
+                    print(f"BTWB network response: {response.status} {response.url}")
+                    if response.status >= 400:
+                        print(f"⚠️  BTWB request failed: {response.status} {response.status_text}")
+            
+            page.on("request", handle_request)
+            page.on("response", handle_response)
             page.on("requestfailed", lambda request: print(f"Network request failed: {request.url}"))
             
             # Set the HTML content
+            print("Setting page content...")
             page.set_content(temp_html, wait_until="networkidle")
             
             # Wait for the widget to appear
             try:
                 print("Waiting for widget to appear...")
                 page.wait_for_selector(".btwb_webwidget", timeout=30000)
-                print("Widget selector found!")
+                print("✅ Widget selector found!")
             except Exception as e:
-                print(f"Warning: Widget selector not found: {e}")
+                print(f"⚠️  Widget selector timeout: {e}")
             
             # Wait for external resources to load
             print("Waiting for network to be idle...")
             try:
-                page.wait_for_load_state("networkidle", timeout=20000)
+                page.wait_for_load_state("networkidle", timeout=25000)
+                print("✅ Network idle reached")
             except Exception as e:
-                print(f"Network idle timeout: {e}")
+                print(f"⚠️  Network idle timeout: {e}")
             
-            # Additional wait for JavaScript execution
-            print("Waiting for JavaScript to process...")
-            page.wait_for_timeout(15000)  # 15 second wait
+            # Additional wait for JavaScript execution and BTWB API calls
+            print("Waiting for BTWB widget to fully load...")
+            page.wait_for_timeout(20000)  # 20 second wait for BTWB
             
-            # Check widget attributes
+            # Check final widget state
             try:
-                widget_date = page.get_attribute(".btwb_webwidget", "data-date")
-                print(f"Widget data-date attribute: {widget_date}")
+                widget_exists = page.locator(".btwb_webwidget").count() > 0
+                print(f"Widget exists after wait: {widget_exists}")
+                
+                if widget_exists:
+                    widget_date = page.get_attribute(".btwb_webwidget", "data-date")
+                    print(f"Widget data-date attribute: {widget_date}")
+                    
+                    widget_html = page.inner_html(".btwb_webwidget")
+                    print(f"Widget HTML length: {len(widget_html)}")
+                    print(f"Widget HTML preview: {widget_html[:300]}...")
             except Exception as e:
-                print(f"Could not get widget date attribute: {e}")
+                print(f"Error checking widget state: {e}")
             
             # Try multiple selectors to get content
             text = ""
@@ -294,43 +364,25 @@ def scrape_btwb_wod(target_date_str):
             for selector in selectors_to_try:
                 try:
                     text = page.inner_text(selector)
-                    if text and text.strip() and "loading" not in text.lower():
-                        print(f"Got content from selector: {selector}")
+                    if text and text.strip() and "Loading workout data" not in text:
+                        print(f"✅ Got content from selector: {selector}")
                         break
+                    else:
+                        print(f"❌ No useful content from selector: {selector}")
                 except Exception as e:
-                    print(f"Failed to get text from {selector}: {e}")
+                    print(f"❌ Failed to get text from {selector}: {e}")
                     continue
-            
-            # Enhanced debugging
-            try:
-                html_content = page.inner_html(".btwb_webwidget")
-                print(f"=== DEBUG: Widget HTML content ===")
-                print(html_content[:1000] + "..." if len(html_content) > 1000 else html_content)
-                print("=== END HTML DEBUG ===")
-            except Exception as e:
-                print(f"Could not get widget HTML: {e}")
-                
-            # Try to get the full page HTML as fallback
-            if not text or text.strip() == "":
-                try:
-                    full_html = page.content()
-                    # Extract any workout-related content from the full HTML
-                    if "workout" in full_html.lower() or "wod" in full_html.lower():
-                        print("Found workout-related content in full HTML")
-                        # You might want to add more sophisticated parsing here
-                except Exception as e:
-                    print(f"Could not get full page HTML: {e}")
             
             browser.close()
             
             print(f"=== Final scraped text (length: {len(text) if text else 0}) ===")
-            print(repr(text[:500]) if text else "No text found")
+            print(f"Text content: {repr(text[:500]) if text else 'No text found'}")
             print("=== END FINAL TEXT ===")
             
             return text
             
     except Exception as e:
-        print(f"Critical error in scraping: {e}")
+        print(f"❌ Critical error in scraping: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -765,6 +817,46 @@ def health():
 
 
 def get_wod_by_date(date_str):
+    """
+    Main function to get WOD data - now tries scraping first, falls back to sample data
+    """
+    print(f"=== Getting WOD for date: {date_str} ===")
+    
+    # First, try to scrape from BTWB
+    try:
+        scraped_text = scrape_btwb_wod(date_str)
+        
+        print(f"=== SCRAPER RESULT DEBUG ===")
+        print(f"Scraped text length: {len(scraped_text) if scraped_text else 0}")
+        print(f"Scraped text content: {repr(scraped_text[:200]) if scraped_text else 'None'}")
+        print("=== END SCRAPER RESULT DEBUG ===")
+        
+        if scraped_text and scraped_text.strip():
+            print("✅ Successfully scraped WOD from BTWB")
+            workouts = parse_wod_text_to_json(scraped_text)
+            
+            # Debug the parsed workouts
+            print(f"=== PARSED WORKOUTS DEBUG ===")
+            print(f"Number of workouts found: {len(workouts)}")
+            for i, workout in enumerate(workouts):
+                print(f"  Workout {i+1}: {workout.get('title', 'No title')}")
+                print(f"    Movements: {workout.get('movements', [])}")
+            print("=== END PARSED WORKOUTS DEBUG ===")
+            
+            return {
+                "date": date_str,
+                "workouts": workouts
+            }
+        else:
+            print("⚠️  No content scraped from BTWB, falling back to sample data")
+    except Exception as e:
+        print(f"❌ Error scraping BTWB: {e}")
+        import traceback
+        traceback.print_exc()
+        print("Falling back to sample data")
+    
+    # Fall back to sample data
+    print("Using sample WOD data")
     return get_sample_wod(date_str)
 
 
@@ -774,4 +866,4 @@ if __name__ == '__main__':
     print(f"home.html exists: {os.path.exists('templates/home.html')}")
     
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)  # Fixed: debug=False for production
