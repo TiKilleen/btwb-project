@@ -1223,7 +1223,7 @@ def get_wod_by_date(date_str):
         print(f"❌ Error scraping BTWB: {e}")
         import traceback
         traceback.print_exc()
-        print("Falling back to sample data")
+        print("Falling back to sample data again")
     
     # Fall back to sample data
     print("Using sample WOD data")
