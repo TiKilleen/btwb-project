@@ -514,15 +514,6 @@ def parse_wod_text_to_json(text):
     return workouts
 
 
-def get_wod_by_date(date_str):
-    """
-    Main function to get WOD data - can be extended to use scraper or fallback to sample data
-    """
-    # For now, just return sample data
-    # In the future, you could add logic here to try scraping first, then fallback to sample
-    return get_sample_wod(date_str)
-
-
 def generate_image(wod_data):
     """
     Enhanced image generation to handle multiple workouts with CSC WOD special formatting
@@ -698,9 +689,6 @@ def generate_image(wod_data):
     except:
         footer_text = f"WORKOUT OF THE DAY {wod_data['date']}"
 
-   
-    
-
     # Draw footer text at bottom of image
     footer_y = 1850
     footer_font_large = ImageFont.truetype(font_path, 48) if os.path.exists(font_path) else ImageFont.load_default()
@@ -768,97 +756,8 @@ def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 
-# NEW DEBUG ROUTES
-@app.route("/routes")
-def list_routes():
-    """List all available routes"""
-    routes = []
-    for rule in app.url_map.iter_rules():
-        routes.append({
-            'endpoint': rule.endpoint,
-            'methods': list(rule.methods),
-            'rule': rule.rule
-        })
-    return {
-        "routes": routes,
-        "total_routes": len(routes)
-    }
-
-
-@app.route("/template-test")
-def template_test():
-    """Test template rendering"""
-    try:
-        # Check if templates directory exists
-        templates_dir = os.path.join(os.getcwd(), 'templates')
-        home_html_path = os.path.join(templates_dir, 'home.html')
-        
-        debug_info = {
-            "templates_dir_exists": os.path.exists(templates_dir),
-            "templates_dir_path": templates_dir,
-            "home_html_exists": os.path.exists(home_html_path),
-            "home_html_path": home_html_path,
-            "current_working_directory": os.getcwd(),
-            "files_in_cwd": os.listdir(os.getcwd()) if os.path.exists(os.getcwd()) else "Cannot list files"
-        }
-        
-        if os.path.exists(templates_dir):
-            debug_info["files_in_templates"] = os.listdir(templates_dir)
-        
-        if os.path.exists(home_html_path):
-            with open(home_html_path, 'r') as f:
-                debug_info["home_html_content_preview"] = f.read()[:500] + "..." if len(f.read()) > 500 else f.read()
-        
-        # Try to render the template
-        try:
-            default_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-            rendered = render_template("home.html", default_date=default_date)
-            debug_info["template_render_success"] = True
-            debug_info["rendered_content_preview"] = rendered[:500] + "..." if len(rendered) > 500 else rendered
-        except Exception as e:
-            debug_info["template_render_success"] = False
-            debug_info["template_render_error"] = str(e)
-        
-        return debug_info
-        
-    except Exception as e:
-        return {"error": str(e), "error_type": type(e).__name__}
-
-
-@app.route("/file-system-debug")
-def file_system_debug():
-    """Debug file system structure"""
-    try:
-        cwd = os.getcwd()
-        debug_info = {
-            "current_working_directory": cwd,
-            "files_and_dirs": {}
-        }
-        
-        # List all files and directories in current directory
-        for item in os.listdir(cwd):
-            item_path = os.path.join(cwd, item)
-            if os.path.isdir(item_path):
-                try:
-                    debug_info["files_and_dirs"][item] = {
-                        "type": "directory",
-                        "contents": os.listdir(item_path)
-                    }
-                except PermissionError:
-                    debug_info["files_and_dirs"][item] = {
-                        "type": "directory",
-                        "contents": "Permission denied"
-                    }
-            else:
-                debug_info["files_and_dirs"][item] = {
-                    "type": "file",
-                    "size": os.path.getsize(item_path)
-                }
-        
-        return debug_info
-        
-    except Exception as e:
-        return {"error": str(e), "error_type": type(e).__name__}
+def get_wod_by_date(date_str):
+    return get_sample_wod(date_str)
 
 
 if __name__ == '__main__':
