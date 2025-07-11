@@ -709,3 +709,69 @@ def generate_image(wod_data):
         scale_factor = available_width / text_width
         new_font_size = int(48 * scale_factor)
         footer_font_large = ImageFont.truetype(font_path, new_font_size) if os.path.exists(font_path) else ImageFont.load_default()
+    
+    draw.text((center_x, footer_y), footer_text, font=footer_font_large, fill="black", anchor="mm")
+
+    # Export
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    return img_io
+
+
+@app.route("/")
+def home():
+    default_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    return render_template("home.html", default_date=default_date)
+
+
+@app.route("/generate")
+def generate():
+    print("=== DEBUG: /generate route called ===")
+    date_str = request.args.get("date")
+    if not date_str:
+        date_str = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    print(f"Date parameter: {date_str}")
+    
+    wod_data = get_wod_by_date(date_str)
+    print(f"WOD data: {wod_data}")
+
+    img_io = generate_image(wod_data)
+
+    # Save image temporarily
+    os.makedirs("static", exist_ok=True)
+    image_path = os.path.join("static", "preview.png")
+    with open(image_path, "wb") as f:
+        f.write(img_io.getvalue())
+    
+    print(f"Image saved to: {image_path}")
+
+    # Reset and return the image
+    img_io.seek(0)
+    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
+
+
+@app.route("/debug")
+def debug():
+    """Debug route to test if Flask is running"""
+    return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p><p>Debug route successful</p>"
+
+
+@app.route("/health")
+def health():
+    """Health check for Render"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+def get_wod_by_date(date_str):
+    return get_sample_wod(date_str)
+
+
+if __name__ == '__main__':
+    print("=== Starting Flask App ===")
+    print(f"Templates folder exists: {os.path.exists('templates')}")
+    print(f"home.html exists: {os.path.exists('templates/home.html')}")
+    
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port, debug=False)
