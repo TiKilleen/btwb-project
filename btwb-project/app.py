@@ -115,10 +115,16 @@ CLASS_SCHEDULE = {
 }
 
 
-def scrape_btwb_wod(widget_html, target_date_str):
+def scrape_btwb_wod(target_date_str):
     """
-    Improved BTWB scraper with better error handling and container compatibility
+    Scrape BTWB workout data for a specific date
     """
+    # Your actual BTWB widget HTML
+    widget_html = """
+    <div class="btwb_webwidget" data-type="wods" data-sections="main" data-track_ids=310497 data-activity_length="0" data-leaderboard_length="0" data-days="0"></div>
+    <script id="btwb_config" data-api_key=apry1ewoh2ssxeanwyne8lldq></script>
+    """
+    
     # Parse the target date to ensure it's in the correct format
     try:
         target_date = datetime.strptime(target_date_str, "%Y-%m-%d")
@@ -128,7 +134,7 @@ def scrape_btwb_wod(widget_html, target_date_str):
         print(f"Error parsing target date: {e}")
         formatted_date = target_date_str
     
-    # Replace data-days="0" with data-date="YYYY-M-D"
+    # Replace data-days="0" with data-date="YYYY-M-D" for specific date targeting
     updated_widget_html = re.sub(r'data-days="[^"]*"', '', widget_html)
     updated_widget_html = updated_widget_html.replace(
         'data-track_ids=310497',
@@ -140,7 +146,7 @@ def scrape_btwb_wod(widget_html, target_date_str):
     print(f"Formatted date: {formatted_date}")
     print("=== END WIDGET DEBUG ===")
     
-    # Create a more robust HTML page with better error handling
+    # Create a more robust HTML page with your BTWB widget
     temp_html = f"""
     <!DOCTYPE html>
     <html>
@@ -158,9 +164,11 @@ def scrape_btwb_wod(widget_html, target_date_str):
     <body>
         <div id="loading" class="loading">Loading workout data...</div>
         {updated_widget_html}
+        <script id="btwb_config" data-api_key=apry1ewoh2ssxeanwyne8lldq></script>
         <script type="text/javascript" src="https://static.btwb.com/libs/webwidgets/2/webwidgets.js"></script>
         <script>
             console.log('Widget initialization starting...');
+            console.log('Target date: {formatted_date}');
             
             // Monitor for content changes
             var checkCount = 0;
@@ -325,7 +333,7 @@ def scrape_btwb_wod(widget_html, target_date_str):
         print(f"Critical error in scraping: {e}")
         import traceback
         traceback.print_exc()
-        return ""
+        return None
 
 
 def parse_wod_text_to_json(text):
@@ -701,69 +709,3 @@ def generate_image(wod_data):
         scale_factor = available_width / text_width
         new_font_size = int(48 * scale_factor)
         footer_font_large = ImageFont.truetype(font_path, new_font_size) if os.path.exists(font_path) else ImageFont.load_default()
-    
-    draw.text((center_x, footer_y), footer_text, font=footer_font_large, fill="black", anchor="mm")
-
-    # Export
-    img_io = io.BytesIO()
-    img.save(img_io, 'PNG')
-    img_io.seek(0)
-    return img_io
-
-
-@app.route("/")
-def home():
-    default_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-    return render_template("home.html", default_date=default_date)
-
-
-@app.route("/generate")
-def generate():
-    print("=== DEBUG: /generate route called ===")
-    date_str = request.args.get("date")
-    if not date_str:
-        date_str = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    print(f"Date parameter: {date_str}")
-    
-    wod_data = get_wod_by_date(date_str)
-    print(f"WOD data: {wod_data}")
-
-    img_io = generate_image(wod_data)
-
-    # Save image temporarily
-    os.makedirs("static", exist_ok=True)
-    image_path = os.path.join("static", "preview.png")
-    with open(image_path, "wb") as f:
-        f.write(img_io.getvalue())
-    
-    print(f"Image saved to: {image_path}")
-
-    # Reset and return the image
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'wod_{date_str}.png')
-
-
-@app.route("/debug")
-def debug():
-    """Debug route to test if Flask is running"""
-    return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p><p>Debug route successful</p>"
-
-
-@app.route("/health")
-def health():
-    """Health check for Render"""
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
-
-
-def get_wod_by_date(date_str):
-    return get_sample_wod(date_str)
-
-
-if __name__ == '__main__':
-    print("=== Starting Flask App ===")
-    print(f"Templates folder exists: {os.path.exists('templates')}")
-    print(f"home.html exists: {os.path.exists('templates/home.html')}")
-    
-    port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=True)
