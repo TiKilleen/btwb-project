@@ -490,8 +490,8 @@ def parse_wod_text_to_json(text):
         
         # If we encounter a "Movement Demos" section header, skip everything until next major section
         for skip_section in skip_sections:
-            if skip_section in line_lower:
-                print(f"🚫 Found Movement Demos section, skipping: {line}")
+            if line_lower.startswith(skip_section):
+                print(f"🚫 SKIP MODE ON — Detected movement demo section: {line}")
                 skip_until_next_section = True
                 break
         
