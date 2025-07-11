@@ -572,12 +572,7 @@ def parse_wod_text_to_json(text):
         
         # Also check for common title patterns
         title_patterns = [
-            r'^[A-Z][A-Z\s]+$',  # All caps titles
-            r'^\d+\s*x\s*\d+',   # "5 x 3" patterns
-            r'^every\s+\d+',     # "Every 2 min"
-            r'^\d+\s*rounds?',   # "5 rounds"
-            r'^csc\s+(wod|strength)',  # CSC WOD or CSC Strength
-        ]
+            r'^[A-Z][A-Z\s]+
 
 
 def generate_image(wod_data):
