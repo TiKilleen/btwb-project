@@ -8,7 +8,7 @@ from flask import Flask, request, render_template, send_file
 from requests.exceptions import HTTPError
 
 import instagram
-from config import APP_BASE_URL, COACH_TAGS, DRY_RUN, SECRET_KEY
+from config import APP_BASE_URL, DRY_RUN, SECRET_KEY
 from mapper import get_fallback_wod, map_wod_json_to_workouts
 from notifier import send_approval_email
 from poster import generate_image
@@ -77,7 +77,7 @@ def prepare_post():
     img_io = _generate_and_save(date_str)
 
     image_url = f"{APP_BASE_URL}/static/preview.png"
-    creation_id = instagram.create_story_container(image_url, user_tags=COACH_TAGS)
+    creation_id = instagram.create_story_container(image_url)
 
     signature = _sign(creation_id, date_str)
     approve_url = f"{APP_BASE_URL}/approve?creation_id={creation_id}&date={date_str}&sig={signature}"

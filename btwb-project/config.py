@@ -6,22 +6,6 @@ BTWB_TRACK_ID = os.environ.get("BTWB_TRACK_ID", "310497")
 INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 
-# x/y are normalized (0-1) positions within the 1080x1920 poster, based on
-# the layout's known geometry (footer text centered at y=1850) -- not yet
-# verified against a real rendered story, since Instagram doesn't offer
-# any way to preview tag placement.
-#
-# danes_n_gains is deliberately omitted: Instagram's API can't tag private
-# accounts regardless of any follow relationship the poster's own account
-# has with them (confirmed via a real 400: "Cannot load user with a
-# private profile"). Re-add once/if that account goes public.
-COACH_TAGS = [
-    # TEMP: movement_and_manners swapped in for a placement/reshare test,
-    # so the real coach account doesn't get a tag notification before
-    # we're ready. Revert to csc_chesterspringscrossfit once confirmed.
-    {"username": "movement_and_manners", "x": 0.5, "y": 0.94},
-]
-
 # Gate on the final publish step only; container creation is harmless (an
 # unpublished container just expires within 24h) so it's safe to always do
 # for real, which gives much stronger confidence when testing.

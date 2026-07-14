@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 
@@ -21,21 +20,13 @@ def _request(method, path, params):
     return response.json()
 
 
-def create_story_container(image_url, user_tags=None):
+def create_story_container(image_url):
     """
     Creates a story media container. Always real, even under DRY_RUN --
     an unpublished container has no public visibility and just expires
     within 24h, so this is safe to actually call while testing.
     """
     params = {"media_type": "STORIES", "image_url": image_url}
-    if user_tags:
-        # No whitespace: this is a JSON blob riding inside a single query
-        # param, and requests encodes spaces as "+" -- fine for servers
-        # that convert "+" back to space, but if this API doesn't, spaces
-        # arrive as literal "+" characters and corrupt the JSON. Emitting
-        # no whitespace sidesteps the ambiguity entirely.
-        params["user_tags"] = json.dumps(user_tags, separators=(",", ":"))
-
     result = _request("POST", f"{INSTAGRAM_USER_ID}/media", params)
     creation_id = result["id"]
     logger.info("Created story container %s for %s", creation_id, image_url)
@@ -67,7 +58,7 @@ def publish_container(creation_id):
     return media_id
 
 
-def publish_story(image_url, user_tags=None):
-    creation_id = create_story_container(image_url, user_tags=user_tags)
+def publish_story(image_url):
+    creation_id = create_story_container(image_url)
     _wait_until_ready(creation_id)
     return publish_container(creation_id)
