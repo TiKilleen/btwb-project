@@ -36,9 +36,9 @@ def main():
     logger.info("Within trigger window, requesting poster for %s", tomorrow)
 
     # Render's free tier can take 30-50s to wake from idle; give it room.
-    response = requests.get(f"{APP_BASE_URL}/generate", params={"date": tomorrow}, timeout=120)
+    response = requests.get(f"{APP_BASE_URL}/prepare_post", params={"date": tomorrow}, timeout=120)
     response.raise_for_status()
-    logger.info("Poster generated for %s (HTTP %s, %d bytes)", tomorrow, response.status_code, len(response.content))
+    logger.info("Poster prepared and approval email sent for %s: %s", tomorrow, response.json())
 
 
 if __name__ == "__main__":
