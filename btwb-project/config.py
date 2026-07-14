@@ -16,7 +16,10 @@ INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 # has with them (confirmed via a real 400: "Cannot load user with a
 # private profile"). Re-add once/if that account goes public.
 COACH_TAGS = [
-    {"username": "csc_chesterspringscrossfit", "x": 0.5, "y": 0.94},
+    # TEMP: tg_killeen swapped in for a placement test, so the real coach
+    # account doesn't get a tag notification before we're ready. Revert to
+    # csc_chesterspringscrossfit once placement is confirmed.
+    {"username": "tg_killeen", "x": 0.5, "y": 0.94},
 ]
 
 # Gate on the final publish step only; container creation is harmless (an
