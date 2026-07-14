@@ -11,8 +11,11 @@ INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 # for real, which gives much stronger confidence when testing.
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() in ("1", "true", "yes")
 
-GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+# Render's free tier blocks outbound SMTP ports entirely, so email goes
+# through Resend's HTTP API instead of SMTP. onboarding@resend.dev can send
+# indefinitely to whatever address the Resend account was signed up with,
+# with no domain verification needed -- exactly our case (emailing yourself).
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "tikilleen@gmail.com")
 
 # Must be the real public URL -- used to build links that Instagram's

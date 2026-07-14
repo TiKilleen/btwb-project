@@ -1,21 +1,17 @@
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
-from config import GMAIL_ADDRESS, GMAIL_APP_PASSWORD, NOTIFY_EMAIL
+import requests
+
+from config import NOTIFY_EMAIL, RESEND_API_KEY
 
 logger = logging.getLogger(__name__)
 
+RESEND_API_URL = "https://api.resend.com/emails"
+
 
 def send_approval_email(image_url, approve_url, date_str):
-    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
-        raise RuntimeError("GMAIL_ADDRESS / GMAIL_APP_PASSWORD not configured")
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"WOD poster ready for {date_str} — approve to post"
-    msg["From"] = GMAIL_ADDRESS
-    msg["To"] = NOTIFY_EMAIL
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY not configured")
 
     html = f"""
     <p>Tomorrow's WOD poster ({date_str}) is ready.</p>
@@ -31,10 +27,18 @@ def send_approval_email(image_url, approve_url, date_str):
       If you don't click this, nothing gets posted.
     </p>
     """
-    msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_ADDRESS, [NOTIFY_EMAIL], msg.as_string())
+    response = requests.post(
+        RESEND_API_URL,
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+        json={
+            "from": "WOD Poster <onboarding@resend.dev>",
+            "to": [NOTIFY_EMAIL],
+            "subject": f"WOD poster ready for {date_str} — approve to post",
+            "html": html,
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
 
     logger.info("Sent approval email for %s to %s", date_str, NOTIFY_EMAIL)
