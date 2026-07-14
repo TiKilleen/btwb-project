@@ -1,12 +1,14 @@
+import hashlib
+import hmac
 import logging
 import os
-import secrets
 from datetime import datetime, timedelta
 
 from flask import Flask, request, render_template, send_file
+from requests.exceptions import HTTPError
 
 import instagram
-from config import APP_BASE_URL, COACH_HANDLES, DRY_RUN
+from config import APP_BASE_URL, COACH_HANDLES, DRY_RUN, SECRET_KEY
 from mapper import get_fallback_wod, map_wod_json_to_workouts
 from notifier import send_approval_email
 from poster import generate_image
@@ -17,9 +19,12 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# In-memory only -- lost on restart/redeploy. Acceptable tradeoff for a
-# once-a-day approval click; see conversation notes for the reasoning.
-PENDING_APPROVALS = {}
+
+def _sign(creation_id, date_str):
+    if not SECRET_KEY:
+        raise RuntimeError("SECRET_KEY environment variable is not set")
+    message = f"{creation_id}:{date_str}".encode()
+    return hmac.new(SECRET_KEY.encode(), message, hashlib.sha256).hexdigest()
 
 
 def get_wod_by_date(date_str):
@@ -63,39 +68,45 @@ def prepare_post():
     """
     Generates the poster, creates a (real, unpublished) Instagram story
     container from it, and emails an approval link. Nothing goes live
-    until that link is clicked -- see /approve.
+    until that link is clicked -- see /approve. The link is signed
+    (HMAC) rather than looked up server-side, so it still works even if
+    the instance cycles between now and when it's clicked -- Render's
+    free tier can do that within minutes of inactivity.
     """
     date_str = request.args.get("date") or (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-    _generate_and_save(date_str)
+    img_io = _generate_and_save(date_str)
 
     image_url = f"{APP_BASE_URL}/static/preview.png"
     user_tags = [{"username": handle} for handle in COACH_HANDLES]
     creation_id = instagram.create_story_container(image_url, user_tags=user_tags)
 
-    token = secrets.token_urlsafe(32)
-    PENDING_APPROVALS[token] = {"creation_id": creation_id, "date": date_str, "used": False}
-
-    approve_url = f"{APP_BASE_URL}/approve/{token}"
-    send_approval_email(image_url, approve_url, date_str)
+    signature = _sign(creation_id, date_str)
+    approve_url = f"{APP_BASE_URL}/approve?creation_id={creation_id}&date={date_str}&sig={signature}"
+    send_approval_email(img_io.getvalue(), approve_url, date_str)
 
     logger.info("Prepared post for %s, awaiting approval (creation_id=%s)", date_str, creation_id)
     return {"status": "awaiting_approval", "date": date_str}
 
 
-@app.route("/approve/<token>")
-def approve(token):
-    pending = PENDING_APPROVALS.get(token)
-    if not pending:
-        return "This approval link is invalid or has expired.", 404
-    if pending["used"]:
-        return "This approval link has already been used.", 410
+@app.route("/approve")
+def approve():
+    creation_id = request.args.get("creation_id", "")
+    date_str = request.args.get("date", "")
+    signature = request.args.get("sig", "")
 
-    pending["used"] = True
-    media_id = instagram.publish_container(pending["creation_id"])
+    expected = _sign(creation_id, date_str)
+    if not hmac.compare_digest(signature, expected):
+        return "This approval link is invalid.", 403
+
+    try:
+        media_id = instagram.publish_container(creation_id)
+    except HTTPError:
+        logger.exception("Publish failed for creation_id=%s", creation_id)
+        return "Instagram rejected this publish -- it may have already been posted, or the container expired.", 409
 
     if DRY_RUN:
-        return f"DRY_RUN is on -- would have published container {pending['creation_id']} for {pending['date']}. No real post was made."
-    return f"Posted to Instagram for {pending['date']} (media id: {media_id})"
+        return f"DRY_RUN is on -- would have published container {creation_id} for {date_str}. No real post was made."
+    return f"Posted to Instagram for {date_str} (media id: {media_id})"
 
 
 @app.route("/debug")

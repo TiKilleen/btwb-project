@@ -24,3 +24,9 @@ NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "tikilleen@gmail.com")
 # servers and your email client both need to reach, regardless of what
 # host the triggering request itself came in on.
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://btwb-project-1.onrender.com")
+
+# Signs the creation_id directly into approval links so /approve needs no
+# server-side memory of pending approvals -- Render's free tier can cycle
+# the instance between when an email is sent and when it's clicked, which
+# would otherwise silently lose an in-memory pending-approval record.
+SECRET_KEY = os.environ.get("SECRET_KEY")

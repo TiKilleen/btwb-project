@@ -1,3 +1,4 @@
+import base64
 import logging
 
 import requests
@@ -9,13 +10,19 @@ logger = logging.getLogger(__name__)
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-def send_approval_email(image_url, approve_url, date_str):
+def send_approval_email(image_bytes, approve_url, date_str):
+    """
+    Embeds the poster directly in the email (as a cid: inline attachment)
+    rather than linking to a URL -- Render's free tier can wipe the static
+    file before you even open the email, and this way the preview always
+    shows exactly what was generated, regardless of server state later.
+    """
     if not RESEND_API_KEY:
         raise RuntimeError("RESEND_API_KEY not configured")
 
     html = f"""
     <p>Tomorrow's WOD poster ({date_str}) is ready.</p>
-    <p><img src="{image_url}" style="max-width: 400px; border: 1px solid #ccc;"></p>
+    <p><img src="cid:poster" style="max-width: 400px; border: 1px solid #ccc;"></p>
     <p>
       <a href="{approve_url}"
          style="display:inline-block;padding:12px 20px;background:#000;color:#fff;
@@ -36,6 +43,14 @@ def send_approval_email(image_url, approve_url, date_str):
             "to": [NOTIFY_EMAIL],
             "subject": f"WOD poster ready for {date_str} — approve to post",
             "html": html,
+            "attachments": [
+                {
+                    "filename": "poster.png",
+                    "content": base64.b64encode(image_bytes).decode("ascii"),
+                    "content_type": "image/png",
+                    "content_id": "poster",
+                }
+            ],
         },
         timeout=15,
     )
