@@ -15,6 +15,8 @@ def _request(method, path, params):
     url = f"{GRAPH_BASE_URL}/{path}"
     params = {**params, "access_token": INSTAGRAM_ACCESS_TOKEN}
     response = requests.request(method, url, params=params, timeout=30)
+    if not response.ok:
+        logger.error("Instagram API error %s for %s: %s", response.status_code, path, response.text)
     response.raise_for_status()
     return response.json()
 
@@ -27,7 +29,12 @@ def create_story_container(image_url, user_tags=None):
     """
     params = {"media_type": "STORIES", "image_url": image_url}
     if user_tags:
-        params["user_tags"] = json.dumps(user_tags)
+        # No whitespace: this is a JSON blob riding inside a single query
+        # param, and requests encodes spaces as "+" -- fine for servers
+        # that convert "+" back to space, but if this API doesn't, spaces
+        # arrive as literal "+" characters and corrupt the JSON. Emitting
+        # no whitespace sidesteps the ambiguity entirely.
+        params["user_tags"] = json.dumps(user_tags, separators=(",", ":"))
 
     result = _request("POST", f"{INSTAGRAM_USER_ID}/media", params)
     creation_id = result["id"]
