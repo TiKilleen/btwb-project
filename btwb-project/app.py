@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from flask import Flask, request, render_template, send_file
 
 import instagram
-from config import APP_BASE_URL, DRY_RUN
+from config import APP_BASE_URL, COACH_HANDLES, DRY_RUN
 from mapper import get_fallback_wod, map_wod_json_to_workouts
 from notifier import send_approval_email
 from poster import generate_image
@@ -69,7 +69,8 @@ def prepare_post():
     _generate_and_save(date_str)
 
     image_url = f"{APP_BASE_URL}/static/preview.png"
-    creation_id = instagram.create_story_container(image_url)
+    user_tags = [{"username": handle} for handle in COACH_HANDLES]
+    creation_id = instagram.create_story_container(image_url, user_tags=user_tags)
 
     token = secrets.token_urlsafe(32)
     PENDING_APPROVALS[token] = {"creation_id": creation_id, "date": date_str, "used": False}

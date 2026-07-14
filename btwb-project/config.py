@@ -6,6 +6,8 @@ BTWB_TRACK_ID = os.environ.get("BTWB_TRACK_ID", "310497")
 INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 
+COACH_HANDLES = ["csc_chesterspringscrossfit", "danes_n_gains"]
+
 # Gate on the final publish step only; container creation is harmless (an
 # unpublished container just expires within 24h) so it's safe to always do
 # for real, which gives much stronger confidence when testing.
