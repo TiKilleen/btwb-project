@@ -7,12 +7,16 @@ INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 
 # x/y are normalized (0-1) positions within the 1080x1920 poster, based on
-# the layout's known geometry (footer text centered at y=1850, black border
-# band roughly y=1875-1910) -- not yet verified against a real rendered
-# story, since Instagram doesn't offer any way to preview tag placement.
+# the layout's known geometry (footer text centered at y=1850) -- not yet
+# verified against a real rendered story, since Instagram doesn't offer
+# any way to preview tag placement.
+#
+# danes_n_gains is deliberately omitted: Instagram's API can't tag private
+# accounts regardless of any follow relationship the poster's own account
+# has with them (confirmed via a real 400: "Cannot load user with a
+# private profile"). Re-add once/if that account goes public.
 COACH_TAGS = [
     {"username": "csc_chesterspringscrossfit", "x": 0.5, "y": 0.94},
-    {"username": "@danes_n_gains", "x": 0.5, "y": 0.985},
 ]
 
 # Gate on the final publish step only; container creation is harmless (an
