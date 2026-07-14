@@ -6,7 +6,14 @@ BTWB_TRACK_ID = os.environ.get("BTWB_TRACK_ID", "310497")
 INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 
-COACH_HANDLES = ["csc_chesterspringscrossfit", "danes_n_gains"]
+# x/y are normalized (0-1) positions within the 1080x1920 poster, based on
+# the layout's known geometry (footer text centered at y=1850, black border
+# band roughly y=1875-1910) -- not yet verified against a real rendered
+# story, since Instagram doesn't offer any way to preview tag placement.
+COACH_TAGS = [
+    {"username": "csc_chesterspringscrossfit", "x": 0.5, "y": 0.94},
+    {"username": "danes_n_gains", "x": 0.5, "y": 0.985},
+]
 
 # Gate on the final publish step only; container creation is harmless (an
 # unpublished container just expires within 24h) so it's safe to always do
