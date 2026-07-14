@@ -12,7 +12,7 @@ INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 # story, since Instagram doesn't offer any way to preview tag placement.
 COACH_TAGS = [
     {"username": "csc_chesterspringscrossfit", "x": 0.5, "y": 0.94},
-    {"username": "danes_n_gains", "x": 0.5, "y": 0.985},
+    {"username": "@danes_n_gains", "x": 0.5, "y": 0.985},
 ]
 
 # Gate on the final publish step only; container creation is harmless (an
