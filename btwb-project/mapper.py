@@ -10,11 +10,16 @@ _NOISE_PHRASES = [", pick load", ", rx+", ", scale as needed", ", modify as need
 # (e.g. "Run, 1200 m\n-- then --\n100 Thrusters..."); drop them as their own line.
 _SEPARATOR_LINE = re.compile(r"^-+\s*(then|and)?\s*-+$", re.IGNORECASE)
 
+# "3 rounds for quality of:" -> "3 rounds for quality:" -- BTWB's scheme-line
+# phrasing always trails with "of" before the colon; drop it for a tighter read.
+_TRAILING_OF = re.compile(r"\s+of:\s*$", re.IGNORECASE)
+
 
 def _clean_movement_line(line):
     line = line.strip()
     for phrase in _NOISE_PHRASES:
         line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
+    line = _TRAILING_OF.sub(":", line)
     return line.strip().strip(",").strip()
 
 
