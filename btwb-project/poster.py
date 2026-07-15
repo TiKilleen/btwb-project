@@ -238,9 +238,9 @@ def generate_image(wod_data):
 
     try:
         wod_date = datetime.strptime(wod_data["date"], "%Y-%m-%d")
-        footer_text = f"WORKOUT OF THE DAY {wod_date.strftime('%B %d, %Y')}"
+        footer_text = f"WORKOUT OF THE DAY {wod_date.strftime('%B %d, %Y')}".upper()
     except Exception:
-        footer_text = f"WORKOUT OF THE DAY {wod_data['date']}"
+        footer_text = f"WORKOUT OF THE DAY {wod_data['date']}".upper()
 
     footer_y = 1850
     footer_font = _load_font(48)
