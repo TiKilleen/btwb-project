@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Review WOD Poster — {{ date_str }}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    p.sub {
+      color: #666;
+      margin-top: 0;
+    }
+
+    img {
+      max-width: 320px;
+      width: 100%;
+      height: auto;
+      border: 2px solid #ccc;
+      margin: 1.5rem 0;
+    }
+
+    .option {
+      max-width: 420px;
+      margin: 0 auto 1.5rem;
+      padding: 1.25rem;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    .option h2 {
+      font-size: 1.1rem;
+      margin: 0 0 0.5rem;
+    }
+
+    .option p {
+      font-size: 0.9rem;
+      color: #666;
+      margin: 0 0 1rem;
+    }
+
+    button, a.button {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background-color: black;
+      color: white;
+      border: none;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    #share-status {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.75rem;
+      min-height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tomorrow's poster is ready</h1>
+  <p class="sub">{{ date_str }}</p>
+  <img src="data:image/png;base64,{{ image_b64 }}" alt="WOD Poster" />
+
+  <div class="option">
+    <h2>Open Instagram to tag &amp; post</h2>
+    <p>Hands the image to Instagram so you can tag coaches yourself and get real reshare rights. Requires the Instagram app on this device.</p>
+    <button id="share-btn">Open Instagram</button>
+    <div id="share-status"></div>
+  </div>
+
+  <div class="option">
+    <h2>Post automatically</h2>
+    <p>One click, no tags. Posts immediately when clicked -- no confirmation step after this.</p>
+    <a class="button" href="{{ approve_url }}">Post automatically</a>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('share-status');
+
+    async function shareToInstagram() {
+      statusEl.textContent = 'Preparing image...';
+      try {
+        const res = await fetch('data:image/png;base64,{{ image_b64 }}');
+        const blob = await res.blob();
+        const file = new File([blob], 'wod-poster.png', { type: 'image/png' });
+
+        if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
+          statusEl.textContent = 'Sharing isn\'t supported on this browser/device. Save the image above and post it manually instead.';
+          return;
+        }
+
+        statusEl.textContent = '';
+        await navigator.share({ files: [file], title: 'WOD Poster {{ date_str }}' });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          statusEl.textContent = 'Could not open the share sheet: ' + err.message;
+        } else {
+          statusEl.textContent = '';
+        }
+      }
+    }
+
+    document.getElementById('share-btn').addEventListener('click', shareToInstagram);
+  </script>
+</body>
+</html>

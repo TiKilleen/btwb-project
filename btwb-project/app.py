@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import logging
@@ -67,11 +68,11 @@ def generate():
 def prepare_post():
     """
     Generates the poster, creates a (real, unpublished) Instagram story
-    container from it, and emails an approval link. Nothing goes live
-    until that link is clicked -- see /approve. The link is signed
-    (HMAC) rather than looked up server-side, so it still works even if
-    the instance cycles between now and when it's clicked -- Render's
-    free tier can do that within minutes of inactivity.
+    container from it, and emails a link to /review. Nothing goes live
+    until you choose an option there. The link is signed (HMAC) rather
+    than looked up server-side, so it still works even if the instance
+    cycles between now and when it's clicked -- Render's free tier can
+    do that within minutes of inactivity.
     """
     date_str = request.args.get("date") or (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
     img_io = _generate_and_save(date_str)
@@ -80,11 +81,39 @@ def prepare_post():
     creation_id = instagram.create_story_container(image_url)
 
     signature = _sign(creation_id, date_str)
-    approve_url = f"{APP_BASE_URL}/approve?creation_id={creation_id}&date={date_str}&sig={signature}"
-    send_approval_email(img_io.getvalue(), approve_url, date_str)
+    review_url = f"{APP_BASE_URL}/review?creation_id={creation_id}&date={date_str}&sig={signature}"
+    send_approval_email(img_io.getvalue(), review_url, date_str)
 
-    logger.info("Prepared post for %s, awaiting approval (creation_id=%s)", date_str, creation_id)
-    return {"status": "awaiting_approval", "date": date_str}
+    logger.info("Prepared post for %s, awaiting review (creation_id=%s)", date_str, creation_id)
+    return {"status": "awaiting_review", "date": date_str}
+
+
+@app.route("/review")
+def review():
+    """
+    Presents the two publishing options: fully-automated (no tags, via
+    the Graph API) or hand off to Instagram's own app so you can tag
+    manually and get real reshare rights (see /approve for why the API
+    can't grant those itself). Embeds the poster directly rather than
+    linking to the static file, since that can go stale by the time
+    this link is actually clicked.
+    """
+    creation_id = request.args.get("creation_id", "")
+    date_str = request.args.get("date", "")
+    signature = request.args.get("sig", "")
+
+    expected = _sign(creation_id, date_str)
+    if not hmac.compare_digest(signature, expected):
+        return "This link is invalid.", 403
+
+    try:
+        with open(os.path.join("static", "preview.png"), "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode("ascii")
+    except FileNotFoundError:
+        return "The poster image is no longer available on the server -- run /prepare_post again to get a fresh link.", 410
+
+    approve_url = f"{APP_BASE_URL}/approve?creation_id={creation_id}&date={date_str}&sig={signature}"
+    return render_template("review.html", image_b64=image_b64, approve_url=approve_url, date_str=date_str)
 
 
 @app.route("/approve")

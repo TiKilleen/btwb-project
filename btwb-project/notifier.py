@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-def send_approval_email(image_bytes, approve_url, date_str):
+def send_approval_email(image_bytes, review_url, date_str):
     """
     Embeds the poster directly in the email (as a cid: inline attachment)
     rather than linking to a URL -- Render's free tier can wipe the static
@@ -24,10 +24,10 @@ def send_approval_email(image_bytes, approve_url, date_str):
     <p>Tomorrow's WOD poster ({date_str}) is ready.</p>
     <p><img src="cid:poster" style="max-width: 400px; border: 1px solid #ccc;"></p>
     <p>
-      <a href="{approve_url}"
+      <a href="{review_url}"
          style="display:inline-block;padding:12px 20px;background:#000;color:#fff;
                 text-decoration:none;font-family:sans-serif;">
-        Approve &amp; Post to Instagram
+        Review &amp; Post
       </a>
     </p>
     <p style="color:#666;font-family:sans-serif;font-size:13px;">
@@ -41,7 +41,7 @@ def send_approval_email(image_bytes, approve_url, date_str):
         json={
             "from": "WOD Poster <onboarding@resend.dev>",
             "to": [NOTIFY_EMAIL],
-            "subject": f"WOD poster ready for {date_str} — approve to post",
+            "subject": f"WOD poster ready for {date_str} — review to post",
             "html": html,
             "attachments": [
                 {
