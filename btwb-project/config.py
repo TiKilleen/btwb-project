@@ -28,3 +28,9 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://btwb-project-1.onrender.c
 # the instance between when an email is sent and when it's clicked, which
 # would otherwise silently lose an in-memory pending-approval record.
 SECRET_KEY = os.environ.get("SECRET_KEY")
+
+# Used only by refresh_instagram_token.py (a separate Cron Job) to read the
+# current INSTAGRAM_ACCESS_TOKEN from this service, then write the refreshed
+# value back and trigger a redeploy so it actually takes effect.
+RENDER_API_KEY = os.environ.get("RENDER_API_KEY")
+RENDER_SERVICE_ID = os.environ.get("RENDER_SERVICE_ID")
