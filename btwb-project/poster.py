@@ -242,7 +242,7 @@ def generate_image(wod_data):
     except Exception:
         footer_text = f"WORKOUT OF THE DAY {wod_data['date']}".upper()
 
-    footer_y = 1850
+    footer_y = 1815
     footer_font = _load_font(48)
     available_width = 1080 - (border_padding * 2) - 20
     text_width = draw.textlength(footer_text, font=footer_font)
