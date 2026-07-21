@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+import requests
 from flask import Flask, request, render_template, send_file
 from requests.exceptions import HTTPError
 
@@ -140,6 +141,18 @@ def approve():
 @app.route("/debug")
 def debug():
     return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p>"
+
+
+@app.route("/debug_ip")
+def debug_ip():
+    """TEMPORARY -- diagnosing whether BTWB is rejecting this service's
+    outbound IP specifically. Remove once that's resolved."""
+    try:
+        response = requests.get("https://api.ipify.org", params={"format": "json"}, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}, 502
 
 
 @app.route("/health")
