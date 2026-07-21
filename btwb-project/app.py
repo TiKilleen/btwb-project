@@ -163,3 +163,4 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)
+# redeploy trigger for IP test Tue Jul 21 12:03:56 UTC 2026
