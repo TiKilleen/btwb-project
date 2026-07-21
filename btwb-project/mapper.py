@@ -14,9 +14,19 @@ _SEPARATOR_LINE = re.compile(r"^-+\s*(then|and)?\s*-+$", re.IGNORECASE)
 # phrasing always trails with "of" before the colon; drop it for a tighter read.
 _TRAILING_OF = re.compile(r"\s+of:\s*$", re.IGNORECASE)
 
+# "Complete as many rounds as possible in 12 mins:" -> "AMRAP-12:" -- BTWB
+# always spells this scheme out, but every CrossFitter reads it as AMRAP.
+_AMRAP = re.compile(
+    r"^(?:complete\s+)?as\s+many\s+(?:rounds|reps)\s+as\s+possible\s+in\s+(\d+)\s*min(?:ute)?s?\s*:?\s*$",
+    re.IGNORECASE,
+)
+
 
 def _clean_movement_line(line):
     line = line.strip()
+    amrap_match = _AMRAP.match(line)
+    if amrap_match:
+        return f"AMRAP-{amrap_match.group(1)}:"
     for phrase in _NOISE_PHRASES:
         line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
     line = _TRAILING_OF.sub(":", line)
