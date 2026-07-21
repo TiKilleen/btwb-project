@@ -54,6 +54,11 @@ def fetch_wod_json(date_str):
             return response.json()
         except requests.exceptions.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
+            if e.response is not None:
+                logger.warning(
+                    "BTWB error response for %s: HTTP %s, headers=%s, body=%r",
+                    date_str, status, dict(e.response.headers), e.response.text[:500],
+                )
             if status is not None and 400 <= status < 500:
                 raise  # client error (bad key, bad params) -- retrying won't help
             last_error = e
