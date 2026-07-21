@@ -142,6 +142,21 @@ def debug():
     return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p>"
 
 
+@app.route("/debug_wod")
+def debug_wod():
+    """Temporary: shows BTWB's raw description text next to what the mapper
+    produces from it, to diagnose mapper regex mismatches without guessing."""
+    date_str = request.args.get("date") or (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    raw = fetch_wod_json(date_str)
+    wodsets = raw.get("wodsets") or []
+    entries = wodsets[0].get("entries") if wodsets else []
+    raw_descriptions = [
+        {"title": e.get("wod_title"), "description": (e.get("workout") or {}).get("workout_description", "")}
+        for e in entries
+    ]
+    return {"date": date_str, "raw": raw_descriptions, "mapped": map_wod_json_to_workouts(raw)}
+
+
 @app.route("/health")
 def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
