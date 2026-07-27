@@ -208,15 +208,24 @@ def generate_image(wod_data):
     # in the visual gap between them. Pass 1's per-slot font fit guarantees
     # every section's content height is within its equal share of
     # available_height, so the sum is guaranteed to fit too.
-    final_content_heights = []
-    for i, workout in enumerate(workouts):
-        final_content_height = content_heights[i]
-        for move_index, move in enumerate(workout["movements"]):
+    # Content height is measured from the first line's center to the last
+    # line's center (matching how each line is actually drawn, anchor="mm")
+    # -- not "one line-height past the last line," which would double-count
+    # a step that never happens and push everything below a section further
+    # away from it than everything above the next one.
+    def _section_span(movements):
+        span = 0
+        for move_index, move in enumerate(movements):
             is_header_line = move_index == 0
             font_for_line = section_title_font if is_header_line else movement_font
+            line_height_for_line = header_line_height if is_header_line else line_height
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
-            final_content_height += len(wrapped) * _line_height(font_for_line) + 15
-        final_content_heights.append(final_content_height)
+            span += (len(wrapped) - 1) * line_height_for_line
+            if move_index < len(movements) - 1:
+                span += line_height_for_line + 15
+        return span
+
+    final_content_heights = [content_heights[i] + _section_span(w["movements"]) for i, w in enumerate(workouts)]
 
     total_content_height = sum(final_content_heights)
     gap = max((available_height - total_content_height) // (num_workouts + 1), 0)
@@ -224,21 +233,25 @@ def generate_image(wod_data):
     current_y = y + gap
     for i, workout in enumerate(workouts):
         is_csc_wod = is_csc_wod_flags[i]
+        movements = workout["movements"]
 
         if not is_csc_wod:
             draw.text((center_x, current_y), workout["title"].upper(), font=section_title_font, fill="black", anchor="mm")
             current_y += 80
 
-        for move_index, move in enumerate(workout["movements"]):
+        for move_index, move in enumerate(movements):
             is_header_line = move_index == 0
+            is_last_movement = move_index == len(movements) - 1
             text_color = "black" if is_header_line else BRAND_RED
             font_for_line = section_title_font if is_header_line else movement_font
             line_height_for_line = header_line_height if is_header_line else line_height
             wrapped_lines = wrap_text(draw, move.upper(), font_for_line, max_text_width)
-            for line in wrapped_lines:
+            for line_index, line in enumerate(wrapped_lines):
                 draw.text((center_x, current_y), line, font=font_for_line, fill=text_color, anchor="mm")
-                current_y += line_height_for_line
-            current_y += 15
+                if line_index < len(wrapped_lines) - 1:
+                    current_y += line_height_for_line
+            if not is_last_movement:
+                current_y += line_height_for_line + 15
 
         if i < num_workouts - 1:
             line_y = current_y + gap // 2
