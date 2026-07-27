@@ -94,9 +94,12 @@ def review():
     Presents the two publishing options: fully-automated (no tags, via
     the Graph API) or hand off to Instagram's own app so you can tag
     manually and get real reshare rights (see /approve for why the API
-    can't grant those itself). Embeds the poster directly rather than
-    linking to the static file, since that can go stale by the time
-    this link is actually clicked.
+    can't grant those itself). Regenerates the poster fresh from the date
+    embedded in the signed link rather than reading back the file
+    /prepare_post wrote to local disk -- Render's free tier spins the
+    instance down after a few idle minutes, wiping that disk, so a cached
+    file can't be relied on to still be there by the time this link is
+    actually clicked.
     """
     creation_id = request.args.get("creation_id", "")
     date_str = request.args.get("date", "")
@@ -106,11 +109,8 @@ def review():
     if not hmac.compare_digest(signature, expected):
         return "This link is invalid.", 403
 
-    try:
-        with open(os.path.join("static", "preview.png"), "rb") as f:
-            image_b64 = base64.b64encode(f.read()).decode("ascii")
-    except FileNotFoundError:
-        return "The poster image is no longer available on the server -- run /prepare_post again to get a fresh link.", 410
+    img_io = _generate_and_save(date_str)
+    image_b64 = base64.b64encode(img_io.getvalue()).decode("ascii")
 
     approve_url = f"{APP_BASE_URL}/approve?creation_id={creation_id}&date={date_str}&sig={signature}"
     return render_template("review.html", image_b64=image_b64, approve_url=approve_url, date_str=date_str)
