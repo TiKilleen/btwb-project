@@ -28,6 +28,7 @@ def _render_headers():
 
 
 def _get_current_instagram_token():
+    logger.info("Querying Render env vars for service %s", RENDER_SERVICE_ID)
     response = requests.get(
         f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/env-vars",
         headers=_render_headers(),
@@ -36,6 +37,10 @@ def _get_current_instagram_token():
     )
     response.raise_for_status()
     entries = response.json()
+    logger.info(
+        "Render returned %d env var(s) for %s: %s",
+        len(entries), RENDER_SERVICE_ID, [entry.get("envVar", entry).get("key") for entry in entries],
+    )
 
     for entry in entries:
         # Render's list endpoints commonly wrap each item as {"envVar": {...},
