@@ -199,21 +199,31 @@ def generate_image(wod_data):
     section_title_font = _load_font(uniform_font_size + TITLE_SIZE_OFFSET)
     header_line_height = _line_height(section_title_font)
 
-    # Pass 2: render every section at that shared size.
+    # Pass 2: render every section at that shared size. Space is allocated
+    # by each section's actual content height, not an equal fixed slot per
+    # workout -- otherwise a short section and a long section leave very
+    # different amounts of whitespace around their (equally-sized) slot,
+    # and a separator line drawn at the fixed slot boundary ends up sitting
+    # closer to one section's content than the other's instead of centered
+    # in the visual gap between them. Pass 1's per-slot font fit guarantees
+    # every section's content height is within its equal share of
+    # available_height, so the sum is guaranteed to fit too.
+    final_content_heights = []
     for i, workout in enumerate(workouts):
-        workout_start_y = y + (i * workout_height)
-        workout_end_y = workout_start_y + workout_height
-        is_csc_wod = is_csc_wod_flags[i]
-
         final_content_height = content_heights[i]
         for move_index, move in enumerate(workout["movements"]):
             is_header_line = move_index == 0
             font_for_line = section_title_font if is_header_line else movement_font
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
             final_content_height += len(wrapped) * _line_height(font_for_line) + 15
+        final_content_heights.append(final_content_height)
 
-        center_offset = (workout_height - final_content_height) // 2
-        current_y = workout_start_y + center_offset
+    total_content_height = sum(final_content_heights)
+    gap = max((available_height - total_content_height) // (num_workouts + 1), 0)
+
+    current_y = y + gap
+    for i, workout in enumerate(workouts):
+        is_csc_wod = is_csc_wod_flags[i]
 
         if not is_csc_wod:
             draw.text((center_x, current_y), workout["title"].upper(), font=section_title_font, fill="black", anchor="mm")
@@ -226,15 +236,14 @@ def generate_image(wod_data):
             line_height_for_line = header_line_height if is_header_line else line_height
             wrapped_lines = wrap_text(draw, move.upper(), font_for_line, max_text_width)
             for line in wrapped_lines:
-                if current_y + line_height_for_line > workout_end_y - 20:
-                    break
                 draw.text((center_x, current_y), line, font=font_for_line, fill=text_color, anchor="mm")
                 current_y += line_height_for_line
             current_y += 15
 
         if i < num_workouts - 1:
-            line_y = workout_end_y - 10
+            line_y = current_y + gap // 2
             draw.line([(center_x - 400, line_y), (center_x + 400, line_y)], fill="gray", width=2)
+            current_y += gap
 
     try:
         wod_date = datetime.strptime(wod_data["date"], "%Y-%m-%d")
