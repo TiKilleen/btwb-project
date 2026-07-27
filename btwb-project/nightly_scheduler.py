@@ -19,8 +19,15 @@ TIMEZONE = ZoneInfo("America/New_York")
 
 
 def in_trigger_window(now_local):
+    # The Cron Job itself fires every 10 minutes (*/10 * * * *, aligned to
+    # :00/:10/:20/...), so this window must stay under 10 minutes wide --
+    # otherwise two separate ticks (e.g. 20:00 and 20:10) both land inside
+    # it, each one independently calling /prepare_post and sending its own
+    # duplicate email. 10 minutes centered on the intended 20:00 trigger
+    # leaves margin on both sides for any scheduling jitter while still
+    # only ever catching the one tick.
     window_start = now_local.replace(hour=19, minute=55, second=0, microsecond=0)
-    window_end = window_start + timedelta(minutes=20)
+    window_end = window_start + timedelta(minutes=10)
     return window_start <= now_local < window_end
 
 
