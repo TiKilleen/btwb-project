@@ -32,5 +32,11 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # Used only by refresh_instagram_token.py (a separate Cron Job) to read the
 # current INSTAGRAM_ACCESS_TOKEN from this service, then write the refreshed
 # value back and trigger a redeploy so it actually takes effect.
+#
+# NOT named RENDER_SERVICE_ID -- that name is reserved by Render, which
+# auto-injects every service's own ID under it. A custom value saved under
+# that same name in the dashboard is silently shadowed by Render's own
+# injected value at runtime, so this must use a different name to actually
+# reach the web service instead of resolving back to the Cron Job itself.
 RENDER_API_KEY = os.environ.get("RENDER_API_KEY")
-RENDER_SERVICE_ID = os.environ.get("RENDER_SERVICE_ID")
+TARGET_SERVICE_ID = os.environ.get("TARGET_SERVICE_ID")

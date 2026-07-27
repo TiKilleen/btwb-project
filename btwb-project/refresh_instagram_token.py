@@ -14,7 +14,7 @@ import logging
 
 import requests
 
-from config import RENDER_API_KEY, RENDER_SERVICE_ID
+from config import RENDER_API_KEY, TARGET_SERVICE_ID
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -28,19 +28,14 @@ def _render_headers():
 
 
 def _get_current_instagram_token():
-    logger.info("Querying Render env vars for service %s", RENDER_SERVICE_ID)
     response = requests.get(
-        f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/env-vars",
+        f"{RENDER_API_BASE}/services/{TARGET_SERVICE_ID}/env-vars",
         headers=_render_headers(),
         params={"limit": 100},
         timeout=15,
     )
     response.raise_for_status()
     entries = response.json()
-    logger.info(
-        "Render returned %d env var(s) for %s: %s",
-        len(entries), RENDER_SERVICE_ID, [entry.get("envVar", entry).get("key") for entry in entries],
-    )
 
     for entry in entries:
         # Render's list endpoints commonly wrap each item as {"envVar": {...},
@@ -68,29 +63,29 @@ def _refresh_token(current_token):
 
 def _update_render_env_var(new_token):
     response = requests.put(
-        f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/env-vars/{INSTAGRAM_TOKEN_KEY}",
+        f"{RENDER_API_BASE}/services/{TARGET_SERVICE_ID}/env-vars/{INSTAGRAM_TOKEN_KEY}",
         headers=_render_headers(),
         json={"value": new_token},
         timeout=15,
     )
     response.raise_for_status()
-    logger.info("Updated %s on Render service %s", INSTAGRAM_TOKEN_KEY, RENDER_SERVICE_ID)
+    logger.info("Updated %s on Render service %s", INSTAGRAM_TOKEN_KEY, TARGET_SERVICE_ID)
 
 
 def _trigger_redeploy():
     response = requests.post(
-        f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/deploys",
+        f"{RENDER_API_BASE}/services/{TARGET_SERVICE_ID}/deploys",
         headers=_render_headers(),
         json={},
         timeout=15,
     )
     response.raise_for_status()
-    logger.info("Triggered redeploy of %s so the new token takes effect", RENDER_SERVICE_ID)
+    logger.info("Triggered redeploy of %s so the new token takes effect", TARGET_SERVICE_ID)
 
 
 def main():
-    if not RENDER_API_KEY or not RENDER_SERVICE_ID:
-        raise RuntimeError("RENDER_API_KEY / RENDER_SERVICE_ID environment variables are not set")
+    if not RENDER_API_KEY or not TARGET_SERVICE_ID:
+        raise RuntimeError("RENDER_API_KEY / TARGET_SERVICE_ID environment variables are not set")
 
     current_token = _get_current_instagram_token()
     new_token = _refresh_token(current_token)
