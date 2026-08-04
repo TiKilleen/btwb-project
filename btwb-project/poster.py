@@ -59,13 +59,25 @@ def _load_font(size):
         return ImageFont.load_default()
 
 
+# A font's raw ascent+descent metrics include more built-in leading than
+# Anton's glyphs actually need for legible spacing -- packing lines to 88%
+# of that frees real vertical room on content-heavy days without touching
+# font size or risking glyphs actually touching.
+_LINE_HEIGHT_FACTOR = 0.88
+
+# Fixed gap after each movement (before the next one starts) -- kept small
+# and separate from _LINE_HEIGHT_FACTOR since this is deliberate breathing
+# room between distinct movements, not font leading.
+MOVEMENT_GAP = 8
+
+
 def _line_height(font):
     # Different font families have very different ascent/descent proportions
     # at the same nominal size -- a fixed offset from font_size overlaps for
     # tall-glyph fonts. Measure the font's actual metrics instead.
     try:
         ascent, descent = font.getmetrics()
-        return ascent + descent
+        return int((ascent + descent) * _LINE_HEIGHT_FACTOR)
     except AttributeError:
         return 30
 
@@ -97,7 +109,7 @@ def _fit_font_size(draw, movements, content_height, max_content_height, max_text
         for idx, move in enumerate(movements):
             font_for_line = test_header_font if (first_move_is_header and idx == 0) else test_font
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
-            test_content_height += len(wrapped) * _line_height(font_for_line) + 15
+            test_content_height += len(wrapped) * _line_height(font_for_line) + MOVEMENT_GAP
         if test_content_height <= max_content_height:
             return font_size
         font_size -= 2
@@ -121,7 +133,13 @@ def generate_image(wod_data):
     header_font = _load_font(50)
 
     center_x = 540
-    y = 150
+    # The border's inner edge sits at y=50; the footer text at the bottom
+    # sits about 19px above the border's inner edge there, so starting the
+    # logo at the same ~19px gap (rather than the old fixed y=150, which
+    # left a lopsided ~100px of empty space up top) keeps top and bottom
+    # margins visually matched and gives the workout content that reclaimed
+    # space to work with.
+    y = 70
 
     border_padding = 20
     border_thickness = 30
@@ -237,7 +255,7 @@ def generate_image(wod_data):
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
             span += (len(wrapped) - 1) * line_height_for_line
             if move_index < len(movements) - 1:
-                span += line_height_for_line + 15
+                span += line_height_for_line + MOVEMENT_GAP
         return span
 
     final_content_heights = [content_heights[i] + _section_span(w["movements"]) for i, w in enumerate(workouts)]
@@ -266,7 +284,7 @@ def generate_image(wod_data):
                 if line_index < len(wrapped_lines) - 1:
                     current_y += line_height_for_line
             if not is_last_movement:
-                current_y += line_height_for_line + 15
+                current_y += line_height_for_line + MOVEMENT_GAP
 
         if i < num_workouts - 1:
             line_y = current_y + gap // 2
