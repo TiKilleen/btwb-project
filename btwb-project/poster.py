@@ -174,18 +174,33 @@ def generate_image(wod_data):
 
     footer_height = 100
     available_height = 1800 - y - footer_height
-    workout_height = available_height // num_workouts
     max_text_width = 900
 
     # Pass 1: every section must render at the same font size, so fit each
     # workout independently first and use the smallest size any of them
     # needs -- mismatched sizes across sections on the same poster look
-    # inconsistent, even though each one individually "fits".
+    # inconsistent, even though each one individually "fits". The height
+    # budget each section gets to fit into is proportional to how much
+    # content it actually has (movement count, plus its own title line if
+    # one is shown), not an equal split -- otherwise a short section and a
+    # long section get squeezed into the same slot, and the whole poster's
+    # font size ends up dictated by the longest section even though a
+    # shorter one had plenty of room to spare.
     is_csc_wod_flags = [_is_csc_wod(w) for w in workouts]
     content_heights = [0 if is_csc else 80 for is_csc in is_csc_wod_flags]
+    content_weights = [
+        len(workout["movements"]) + (0 if is_csc else 1)
+        for workout, is_csc in zip(workouts, is_csc_wod_flags)
+    ]
+    total_weight = sum(content_weights)
+    equal_share = available_height // num_workouts
+    workout_budgets = [
+        max(int(available_height * (weight / total_weight)), equal_share // 3)
+        for weight in content_weights
+    ]
     uniform_font_size = min(
         _fit_font_size(
-            draw, workout["movements"], content_heights[i], workout_height - 40, max_text_width,
+            draw, workout["movements"], content_heights[i], workout_budgets[i] - 40, max_text_width,
             first_move_is_header=True,
         )
         for i, workout in enumerate(workouts)
@@ -202,12 +217,12 @@ def generate_image(wod_data):
     # Pass 2: render every section at that shared size. Space is allocated
     # by each section's actual content height, not an equal fixed slot per
     # workout -- otherwise a short section and a long section leave very
-    # different amounts of whitespace around their (equally-sized) slot,
-    # and a separator line drawn at the fixed slot boundary ends up sitting
-    # closer to one section's content than the other's instead of centered
-    # in the visual gap between them. Pass 1's per-slot font fit guarantees
-    # every section's content height is within its equal share of
-    # available_height, so the sum is guaranteed to fit too.
+    # different amounts of whitespace around their slot, and a separator
+    # line drawn at a fixed slot boundary ends up sitting closer to one
+    # section's content than the other's instead of centered in the visual
+    # gap between them. Pass 1's per-section budgets are proportional to
+    # content but still sum to available_height (modulo the small floor
+    # applied to near-empty sections), so the total is expected to fit.
     # Content height is measured from the first line's center to the last
     # line's center (matching how each line is actually drawn, anchor="mm")
     # -- not "one line-height past the last line," which would double-count
