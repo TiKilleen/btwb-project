@@ -178,7 +178,7 @@ def generate_image(wod_data):
     schedule_list = CLASS_SCHEDULE.get(weekday, [])
     schedule_text = " // ".join(schedule_list) if schedule_list else "No Classes Today"
     draw.text((center_x, y), schedule_text, font=header_font, fill="black", anchor="mm")
-    y += 100
+    y += 65
 
     workouts = wod_data.get("workouts", [])
     num_workouts = len(workouts)
