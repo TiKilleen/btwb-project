@@ -46,6 +46,18 @@ def _movements_from_description(description):
     return movements
 
 
+def _hero_wod_name(entry):
+    """
+    BTWB's wod_title is always a generic section label ("CSC WOD"), but
+    workout_name is a verbose restatement of the movements for a regular
+    workout (e.g. "Power Snatch 1-1-1-1-1, rest 1:30") vs. just the actual
+    name for a benchmark/hero WOD (e.g. "Randy") -- a single word is a
+    reliable signal it's a real name worth showing, not a description.
+    """
+    name = ((entry.get("workout") or {}).get("workout_name") or "").strip()
+    return name if name and len(name.split()) == 1 else None
+
+
 def map_wod_json_to_workouts(raw_json):
     """
     Turn BTWB's raw webwidget JSON into the [{"title": ..., "movements": [...]}]
@@ -61,6 +73,16 @@ def map_wod_json_to_workouts(raw_json):
         title = entry.get("wod_title") or "WOD"
         description = (entry.get("workout") or {}).get("workout_description", "")
         movements = _movements_from_description(description)
+
+        hero_name = _hero_wod_name(entry)
+        if hero_name:
+            # Hero WODs come with a memorial bio trailing the actual
+            # movements, starting with the honoree's full name -- drop it,
+            # and use the real name as the section title instead of the
+            # generic "CSC WOD" label every entry otherwise gets.
+            movements = [m for m in movements if not m.lower().startswith(hero_name.lower())]
+            title = hero_name
+
         if not movements:
             continue
         workouts.append({"title": title, "movements": movements})
