@@ -22,6 +22,13 @@ _AMRAP = re.compile(
     re.IGNORECASE,
 )
 
+# Whole lines BTWB sometimes includes that don't add anything on a poster --
+# dropped entirely rather than cleaned, since there's nothing to keep.
+_IGNORED_LINES = re.compile(
+    r"^use the heaviest weight you can for each set\.?$",
+    re.IGNORECASE,
+)
+
 
 def _clean_movement_line(line):
     line = line.strip()
@@ -38,7 +45,7 @@ def _movements_from_description(description):
     movements = []
     for raw_line in description.split("\n"):
         line = raw_line.strip()
-        if not line or _SEPARATOR_LINE.match(line):
+        if not line or _SEPARATOR_LINE.match(line) or _IGNORED_LINES.match(line):
             continue
         cleaned = _clean_movement_line(line)
         if cleaned:
@@ -81,7 +88,7 @@ def map_wod_json_to_workouts(raw_json):
             # and use the real name as the section title instead of the
             # generic "CSC WOD" label every entry otherwise gets.
             movements = [m for m in movements if not m.lower().startswith(hero_name.lower())]
-            title = hero_name
+            title = f'"{hero_name}"'
 
         if not movements:
             continue
