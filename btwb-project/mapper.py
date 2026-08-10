@@ -29,12 +29,30 @@ _IGNORED_LINES = re.compile(
     re.IGNORECASE,
 )
 
+# "Run, 800m" -> "800M Run" -- CrossFitters read distance-based movements
+# lead-with-the-number, matching how every other rep scheme on the poster
+# already reads ("100 Kettlebell Swings", not "Kettlebell Swings, 100").
+# Restricted to actual distance units (not "lbs"/"kg") so weighted
+# movements like "Deadlift, 225 lbs" are left alone.
+_DISTANCE_MOVEMENT = re.compile(
+    r"^([A-Za-z][A-Za-z\s'-]*?),\s*(\d+(?:\.\d+)?)\s*(meters?|kilometers?|miles?|yards?|feet|m|km|mi|ft|yd)\.?$",
+    re.IGNORECASE,
+)
+# Short abbreviations sit flush against the number ("800M"); spelled-out
+# units get a space ("1 Mile") since "1Mile" reads as a typo, not a unit.
+_SHORT_DISTANCE_UNITS = {"m", "km", "mi", "ft", "yd"}
+
 
 def _clean_movement_line(line):
     line = line.strip()
     amrap_match = _AMRAP.match(line)
     if amrap_match:
         return f"AMRAP-{amrap_match.group(1)}:"
+    distance_match = _DISTANCE_MOVEMENT.match(line)
+    if distance_match:
+        movement, number, unit = distance_match.groups()
+        unit_sep = "" if unit.lower() in _SHORT_DISTANCE_UNITS else " "
+        line = f"{number}{unit_sep}{unit} {movement.strip()}"
     for phrase in _NOISE_PHRASES:
         line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
     line = _TRAILING_OF.sub(":", line)
