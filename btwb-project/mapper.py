@@ -42,6 +42,18 @@ _DISTANCE_MOVEMENT = re.compile(
 # units get a space ("1 Mile") since "1Mile" reads as a typo, not a unit.
 _SHORT_DISTANCE_UNITS = {"m", "km", "mi", "ft", "yd"}
 
+# "5 Power Cleans, 135/95 lbs" -> "5 Power Cleans", "15 Box Jump Overs,
+# 24/20 in" -> "15 Box Jump Overs" -- specific prescribed loads and box/
+# dimension heights are set by the coach and don't need to be broadcast on
+# the poster, same spirit as already dropping ", pick load" etc. Only
+# matches a trailing weight/dimension spec, not other comma-suffixed detail
+# like ", 30 secs" (a hold duration is part of the movement, not a loading
+# detail) or ", 24/20 in" mid-line.
+_LOAD_SPEC = re.compile(
+    r",\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*(?:lbs?|kgs?|#|in(?:ches?)?|cm)\.?$",
+    re.IGNORECASE,
+)
+
 
 def _clean_movement_line(line):
     line = line.strip()
@@ -53,6 +65,7 @@ def _clean_movement_line(line):
         movement, number, unit = distance_match.groups()
         unit_sep = "" if unit.lower() in _SHORT_DISTANCE_UNITS else " "
         line = f"{number}{unit_sep}{unit} {movement.strip()}"
+    line = _LOAD_SPEC.sub("", line)
     for phrase in _NOISE_PHRASES:
         line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
     line = _TRAILING_OF.sub(":", line)
