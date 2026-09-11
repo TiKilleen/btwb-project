@@ -70,6 +70,11 @@ _LINE_HEIGHT_FACTOR = 0.88
 # room between distinct movements, not font leading.
 MOVEMENT_GAP = 8
 
+# Gap after a section's title, before its first movement -- deliberately
+# bigger than MOVEMENT_GAP since a title is a different kind of break than
+# movement-to-movement.
+TITLE_GAP = 15
+
 
 def _line_height(font):
     # Different font families have very different ascent/descent proportions
@@ -100,14 +105,25 @@ def _is_csc_wod(workout):
 TITLE_SIZE_OFFSET = 8
 
 
-def _fit_font_size(draw, movements, content_height, max_content_height, max_text_width, first_move_is_header=False, start_size=54, min_size=20):
+def _fit_font_size(draw, movements, title, max_content_height, max_text_width, start_size=54, min_size=20):
+    """
+    title is the section's real title text if one will be drawn, or None if
+    it's suppressed (CSC WOD/Strength sections) -- wrapped and measured at
+    each candidate font size just like movements, since a long title (e.g.
+    a hero WOD's full name) can wrap to multiple lines same as any other
+    text, and needs to be sized for rather than assumed to always be one
+    line.
+    """
     font_size = start_size
     while font_size > min_size:
         test_font = _load_font(font_size)
         test_header_font = _load_font(font_size + TITLE_SIZE_OFFSET)
-        test_content_height = content_height
+        test_content_height = 0
+        if title is not None:
+            wrapped_title = wrap_text(draw, title.upper(), test_header_font, max_text_width)
+            test_content_height += len(wrapped_title) * _line_height(test_header_font) + TITLE_GAP
         for idx, move in enumerate(movements):
-            font_for_line = test_header_font if (first_move_is_header and idx == 0) else test_font
+            font_for_line = test_header_font if idx == 0 else test_font
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
             test_content_height += len(wrapped) * _line_height(font_for_line) + MOVEMENT_GAP
         if test_content_height <= max_content_height:
@@ -205,10 +221,16 @@ def generate_image(wod_data):
     # font size ends up dictated by the longest section even though a
     # shorter one had plenty of room to spare.
     is_csc_wod_flags = [_is_csc_wod(w) for w in workouts]
-    content_heights = [0 if is_csc else 80 for is_csc in is_csc_wod_flags]
+    # A suppressed (CSC WOD/Strength) section has no title line at all; a
+    # real title is weighted by roughly how many lines it's likely to wrap
+    # to (character count / 25 is a rough estimate, not exact -- the actual
+    # fit below re-measures the real wrap at each candidate font size, this
+    # just needs to be in the right ballpark so a section with an unusually
+    # long title, like a hero WOD's full name, isn't shortchanged on space).
+    titles = [None if is_csc else workout["title"] for workout, is_csc in zip(workouts, is_csc_wod_flags)]
     content_weights = [
-        len(workout["movements"]) + (0 if is_csc else 1)
-        for workout, is_csc in zip(workouts, is_csc_wod_flags)
+        len(workout["movements"]) + (0 if title is None else max(1, len(title) // 25))
+        for workout, title in zip(workouts, titles)
     ]
     total_weight = sum(content_weights)
     equal_share = available_height // num_workouts
@@ -217,10 +239,7 @@ def generate_image(wod_data):
         for weight in content_weights
     ]
     uniform_font_size = min(
-        _fit_font_size(
-            draw, workout["movements"], content_heights[i], workout_budgets[i] - 40, max_text_width,
-            first_move_is_header=True,
-        )
+        _fit_font_size(draw, workout["movements"], titles[i], workout_budgets[i] - 40, max_text_width)
         for i, workout in enumerate(workouts)
     )
 
@@ -246,19 +265,26 @@ def generate_image(wod_data):
     # -- not "one line-height past the last line," which would double-count
     # a step that never happens and push everything below a section further
     # away from it than everything above the next one.
-    def _section_span(movements):
+    def _section_span(title, movements):
         span = 0
+        prior_line_height = None
+        if title is not None:
+            wrapped_title = wrap_text(draw, title.upper(), section_title_font, max_text_width)
+            span += (len(wrapped_title) - 1) * header_line_height
+            prior_line_height = header_line_height
         for move_index, move in enumerate(movements):
             is_header_line = move_index == 0
             font_for_line = section_title_font if is_header_line else movement_font
             line_height_for_line = header_line_height if is_header_line else line_height
             wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
+            if prior_line_height is not None:
+                gap = TITLE_GAP if title is not None and move_index == 0 else MOVEMENT_GAP
+                span += prior_line_height + gap
             span += (len(wrapped) - 1) * line_height_for_line
-            if move_index < len(movements) - 1:
-                span += line_height_for_line + MOVEMENT_GAP
+            prior_line_height = line_height_for_line
         return span
 
-    final_content_heights = [content_heights[i] + _section_span(w["movements"]) for i, w in enumerate(workouts)]
+    final_content_heights = [_section_span(titles[i], w["movements"]) for i, w in enumerate(workouts)]
 
     total_content_height = sum(final_content_heights)
     gap = max((available_height - total_content_height) // (num_workouts + 1), 0)
@@ -269,8 +295,12 @@ def generate_image(wod_data):
         movements = workout["movements"]
 
         if not is_csc_wod:
-            draw.text((center_x, current_y), workout["title"].upper(), font=section_title_font, fill="black", anchor="mm")
-            current_y += 80
+            wrapped_title = wrap_text(draw, workout["title"].upper(), section_title_font, max_text_width)
+            for line_index, line in enumerate(wrapped_title):
+                draw.text((center_x, current_y), line, font=section_title_font, fill="black", anchor="mm")
+                if line_index < len(wrapped_title) - 1:
+                    current_y += header_line_height
+            current_y += header_line_height + TITLE_GAP
 
         for move_index, move in enumerate(movements):
             is_header_line = move_index == 0
