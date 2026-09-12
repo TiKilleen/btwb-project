@@ -50,7 +50,7 @@ _SHORT_DISTANCE_UNITS = {"m", "km", "mi", "ft", "yd"}
 # like ", 30 secs" (a hold duration is part of the movement, not a loading
 # detail) or ", 24/20 in" mid-line.
 _LOAD_SPEC = re.compile(
-    r",\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*(?:lbs?|kgs?|#|in(?:ches?)?|cm)\.?$",
+    r",\s*\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)?\s*(?:lbs?|kgs?|#|in(?:ches?)?|cm|ft|feet)\.?$",
     re.IGNORECASE,
 )
 
