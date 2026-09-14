@@ -24,10 +24,22 @@ _AMRAP = re.compile(
 
 # Whole lines BTWB sometimes includes that don't add anything on a poster --
 # dropped entirely rather than cleaned, since there's nothing to keep.
+# Weightlifting rest instructions show up in several different phrasings
+# ("Rest as needed between sets.", "Rest 1:30 between sets.") -- match the
+# shape rather than one exact phrase so any of them get dropped.
 _IGNORED_LINES = re.compile(
-    r"^use the heaviest weight you can for each set\.?$",
+    r"^(?:use the heaviest weight you can for each set|rest\s+.*\bbetween sets)\.?$",
     re.IGNORECASE,
 )
+
+# "Overhead Squat 3-3-3-3-3" -> ["Overhead Squat", "3-3-3-3-3"] -- a
+# weightlifting scheme is really two distinct pieces of information (the
+# lift, and the sets/reps breakdown). Splitting them onto separate lines
+# lets the poster's existing header/body line styling show the movement
+# name in black and the scheme underneath it in red, same as every other
+# section already separates its header from its detail, instead of both
+# packed into one black header line.
+_LIFT_SCHEME = re.compile(r"^([A-Za-z][A-Za-z\s'-]*?)\s+(\d+(?:-\d+)+)$")
 
 # "Run, 800m" -> "800M Run" -- CrossFitters read distance-based movements
 # lead-with-the-number, matching how every other rep scheme on the poster
@@ -79,7 +91,13 @@ def _movements_from_description(description):
         if not line or _SEPARATOR_LINE.match(line) or _IGNORED_LINES.match(line):
             continue
         cleaned = _clean_movement_line(line)
-        if cleaned:
+        if not cleaned:
+            continue
+        lift_match = _LIFT_SCHEME.match(cleaned)
+        if lift_match:
+            movements.append(lift_match.group(1).strip())
+            movements.append(lift_match.group(2).strip())
+        else:
             movements.append(cleaned)
     return movements
 
