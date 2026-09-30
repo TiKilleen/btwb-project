@@ -142,6 +142,15 @@ def debug():
     return f"<h1>Flask is working!</h1><p>Time: {datetime.now()}</p>"
 
 
+@app.route("/debug_wod")
+def debug_wod():
+    """Temporary: shows what the mapper produces for a date, for an ad-hoc
+    one-off poster edit -- not a permanent route."""
+    date_str = request.args.get("date") or (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    raw = fetch_wod_json(date_str)
+    return {"date": date_str, "mapped": map_wod_json_to_workouts(raw)}
+
+
 @app.route("/health")
 def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
