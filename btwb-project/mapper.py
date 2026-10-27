@@ -72,6 +72,17 @@ _LOAD_SPEC = re.compile(
 _TIME_MOVEMENT = re.compile(r"^([A-Za-z][A-Za-z\s'-]*?),\s*(\d+:\d{2})\.?$")
 
 
+# "Handstand Hold, 45 secs" -> ":45 Handstand Hold" -- holds read like a
+# clock, seconds-first. 60+ seconds becomes m:ss ("90 secs" -> "1:30"),
+# since ":90" isn't how anyone writes a time.
+_SECONDS_MOVEMENT = re.compile(r"^([A-Za-z][A-Za-z\s'-]*?),\s*(\d+)\s*(?:secs?|seconds?)\.?$", re.IGNORECASE)
+
+
+def _seconds_as_clock(total_seconds):
+    minutes, seconds = divmod(total_seconds, 60)
+    return f"{minutes}:{seconds:02d}" if minutes else f":{seconds:02d}"
+
+
 def _clean_movement_line(line):
     line = line.strip()
     amrap_match = _AMRAP.match(line)
@@ -92,6 +103,10 @@ def _clean_movement_line(line):
     if time_match:
         movement, time_value = time_match.groups()
         line = f"{time_value} {movement.strip()}"
+    seconds_match = _SECONDS_MOVEMENT.match(line)
+    if seconds_match:
+        movement, seconds = seconds_match.groups()
+        line = f"{_seconds_as_clock(int(seconds))} {movement.strip()}"
     line = _LOAD_SPEC.sub("", line)
     line = _TRAILING_OF.sub(":", line)
     return line.strip().strip(",").strip()
