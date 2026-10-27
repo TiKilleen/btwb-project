@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import re
 from datetime import datetime
 
 from PIL import Image, ImageDraw, ImageFont
@@ -33,8 +34,25 @@ LOGO_PATH = "csc_logo.jpg"
 BRAND_RED = "#CB2229"
 
 
+# A number followed by one of these is a single value ("100 M", "45 SECS") --
+# wrapping must never put the number at the end of one row and the unit alone
+# on the next.
+_VALUE_UNITS = {"M", "KM", "MI", "FT", "YD", "LB", "LBS", "KG", "CM", "CAL", "CALS", "SEC", "SECS", "MIN", "MINS"}
+_NUMERIC_TOKEN = re.compile(r"^\d[\d:./-]*$")
+
+
+def _bind_values(words):
+    tokens = []
+    for word in words:
+        if tokens and word.upper().strip(".,;:") in _VALUE_UNITS and _NUMERIC_TOKEN.match(tokens[-1]):
+            tokens[-1] = f"{tokens[-1]} {word}"
+        else:
+            tokens.append(word)
+    return tokens
+
+
 def wrap_text(draw, text, font, max_width):
-    words = text.split()
+    words = _bind_values(text.split())
     lines = []
     current_line = ""
 
@@ -49,6 +67,27 @@ def wrap_text(draw, text, font, max_width):
         lines.append(current_line)
 
     return lines
+
+
+# Applied only when a line is too wide to fit on one row as written -- a line
+# that fits keeps the full word, so "Kettlebell" and "KB" never mix on a
+# poster unless length actually forced it.
+_ABBREVIATIONS = ((re.compile(r"\bKETTLEBELLS?\b"), "KB"),)
+
+
+def _wrap_line(draw, text, font, max_width):
+    text = text.upper()
+    if draw.textlength(text, font=font) > max_width:
+        for pattern, short in _ABBREVIATIONS:
+            text = pattern.sub(short, text)
+    return wrap_text(draw, text, font, max_width)
+
+
+def _is_header_line(index, text):
+    # The first line of a section is its header; so is any later line ending
+    # in a colon ("then in the remaining time, AMRAP:") -- it introduces what
+    # follows rather than being a movement itself.
+    return index == 0 or text.rstrip().endswith(":")
 
 
 def _load_font(size):
@@ -120,12 +159,14 @@ def _fit_font_size(draw, movements, title, max_content_height, max_text_width, s
         test_header_font = _load_font(font_size + TITLE_SIZE_OFFSET)
         test_content_height = 0
         if title is not None:
-            wrapped_title = wrap_text(draw, title.upper(), test_header_font, max_text_width)
+            wrapped_title = _wrap_line(draw, title, test_header_font, max_text_width)
             test_content_height += len(wrapped_title) * _line_height(test_header_font) + TITLE_GAP
         for idx, move in enumerate(movements):
-            font_for_line = test_header_font if idx == 0 else test_font
-            wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
+            font_for_line = test_header_font if _is_header_line(idx, move) else test_font
+            wrapped = _wrap_line(draw, move, font_for_line, max_text_width)
             test_content_height += len(wrapped) * _line_height(font_for_line) + MOVEMENT_GAP
+            if idx > 0 and _is_header_line(idx, move):
+                test_content_height += TITLE_GAP - MOVEMENT_GAP
         if test_content_height <= max_content_height:
             return font_size
         font_size -= 2
@@ -269,16 +310,17 @@ def generate_image(wod_data):
         span = 0
         prior_line_height = None
         if title is not None:
-            wrapped_title = wrap_text(draw, title.upper(), section_title_font, max_text_width)
+            wrapped_title = _wrap_line(draw, title, section_title_font, max_text_width)
             span += (len(wrapped_title) - 1) * header_line_height
             prior_line_height = header_line_height
         for move_index, move in enumerate(movements):
-            is_header_line = move_index == 0
+            is_header_line = _is_header_line(move_index, move)
             font_for_line = section_title_font if is_header_line else movement_font
             line_height_for_line = header_line_height if is_header_line else line_height
-            wrapped = wrap_text(draw, move.upper(), font_for_line, max_text_width)
+            wrapped = _wrap_line(draw, move, font_for_line, max_text_width)
             if prior_line_height is not None:
-                gap = TITLE_GAP if title is not None and move_index == 0 else MOVEMENT_GAP
+                starts_block = (title is not None and move_index == 0) or (move_index > 0 and is_header_line)
+                gap = TITLE_GAP if starts_block else MOVEMENT_GAP
                 span += prior_line_height + gap
             span += (len(wrapped) - 1) * line_height_for_line
             prior_line_height = line_height_for_line
@@ -295,7 +337,7 @@ def generate_image(wod_data):
         movements = workout["movements"]
 
         if not is_csc_wod:
-            wrapped_title = wrap_text(draw, workout["title"].upper(), section_title_font, max_text_width)
+            wrapped_title = _wrap_line(draw, workout["title"], section_title_font, max_text_width)
             for line_index, line in enumerate(wrapped_title):
                 draw.text((center_x, current_y), line, font=section_title_font, fill="black", anchor="mm")
                 if line_index < len(wrapped_title) - 1:
@@ -303,18 +345,19 @@ def generate_image(wod_data):
             current_y += header_line_height + TITLE_GAP
 
         for move_index, move in enumerate(movements):
-            is_header_line = move_index == 0
+            is_header_line = _is_header_line(move_index, move)
             is_last_movement = move_index == len(movements) - 1
             text_color = "black" if is_header_line else BRAND_RED
             font_for_line = section_title_font if is_header_line else movement_font
             line_height_for_line = header_line_height if is_header_line else line_height
-            wrapped_lines = wrap_text(draw, move.upper(), font_for_line, max_text_width)
+            wrapped_lines = _wrap_line(draw, move, font_for_line, max_text_width)
             for line_index, line in enumerate(wrapped_lines):
                 draw.text((center_x, current_y), line, font=font_for_line, fill=text_color, anchor="mm")
                 if line_index < len(wrapped_lines) - 1:
                     current_y += line_height_for_line
             if not is_last_movement:
-                current_y += line_height_for_line + MOVEMENT_GAP
+                next_starts_block = _is_header_line(move_index + 1, movements[move_index + 1])
+                current_y += line_height_for_line + (TITLE_GAP if next_starts_block else MOVEMENT_GAP)
 
         if i < num_workouts - 1:
             line_y = current_y + gap // 2

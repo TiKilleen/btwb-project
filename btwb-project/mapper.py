@@ -67,19 +67,32 @@ _LOAD_SPEC = re.compile(
 )
 
 
+# "Any Machine, 1:30" -> "1:30 Any Machine" -- same lead-with-the-number
+# convention as distances, for timed intervals written as m:ss.
+_TIME_MOVEMENT = re.compile(r"^([A-Za-z][A-Za-z\s'-]*?),\s*(\d+:\d{2})\.?$")
+
+
 def _clean_movement_line(line):
     line = line.strip()
     amrap_match = _AMRAP.match(line)
     if amrap_match:
         return f"AMRAP-{amrap_match.group(1)}:"
+    # Noise phrases come out first: ", pick load" sitting between a movement
+    # and its distance ("Carry, pick load, 100 m") would otherwise stop the
+    # reorder rules below from matching at all.
+    for phrase in _NOISE_PHRASES:
+        line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
+    line = line.strip()
     distance_match = _DISTANCE_MOVEMENT.match(line)
     if distance_match:
         movement, number, unit = distance_match.groups()
         unit_sep = "" if unit.lower() in _SHORT_DISTANCE_UNITS else " "
         line = f"{number}{unit_sep}{unit} {movement.strip()}"
+    time_match = _TIME_MOVEMENT.match(line)
+    if time_match:
+        movement, time_value = time_match.groups()
+        line = f"{time_value} {movement.strip()}"
     line = _LOAD_SPEC.sub("", line)
-    for phrase in _NOISE_PHRASES:
-        line = re.sub(re.escape(phrase), "", line, flags=re.IGNORECASE)
     line = _TRAILING_OF.sub(":", line)
     return line.strip().strip(",").strip()
 
